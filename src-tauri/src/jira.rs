@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use reqwest;
-use base64;
+use base64::{Engine as _, engine::general_purpose};
 use anyhow::Result;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -63,7 +63,7 @@ impl JiraClient {
         }
 
         let auth_header = format!("{}:{}", self.email, self.api_token);
-        let encoded = base64::encode(auth_header);
+        let encoded = general_purpose::STANDARD.encode(auth_header);
 
         let url = format!("{}/rest/api/3/search", self.base_url);
         

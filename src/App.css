@@ -586,40 +586,228 @@ tr:last-child td {
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
   :root {
-    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+    color: #e2e8f0;
+  }
+  
+  body {
+    background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
   }
   
   .container {
-    background: rgba(44, 62, 80, 0.95);
-    color: #ecf0f1;
+    background: rgba(26, 32, 44, 0.95);
+    color: #e2e8f0;
+    border: 1px solid rgba(74, 85, 104, 0.3);
   }
   
+  h1 {
+    color: #e2e8f0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  h2, h3 {
+    color: #cbd5e0;
+    border-bottom-color: #4a5568;
+  }
+  
+  /* Forms and inputs */
   form, .date-selector, .jira-search, .admin-section {
-    background: rgba(52, 73, 94, 0.9);
-    color: #ecf0f1;
+    background: rgba(45, 55, 72, 0.9);
+    color: #e2e8f0;
+    border-color: rgba(74, 85, 104, 0.3);
+  }
+  
+  label {
+    color: #cbd5e0;
   }
   
   input, textarea, select {
-    background: rgba(44, 62, 80, 0.8);
-    color: #ecf0f1;
-    border-color: #5a6c7d;
+    background: rgba(26, 32, 44, 0.8);
+    color: #e2e8f0;
+    border-color: #4a5568;
+  }
+  
+  input::placeholder, textarea::placeholder {
+    color: #718096;
   }
   
   input:focus, textarea:focus, select:focus {
-    background: rgba(44, 62, 80, 1);
+    background: rgba(26, 32, 44, 1);
+    border-color: #667eea;
   }
   
+  /* Tables */
   table {
-    background: rgba(52, 73, 94, 0.9);
+    background: rgba(45, 55, 72, 0.9);
   }
   
   td {
-    color: #ecf0f1;
-    border-bottom-color: #5a6c7d;
+    color: #e2e8f0;
+    border-bottom-color: #4a5568;
   }
   
   tr:hover td {
     background: rgba(102, 126, 234, 0.1);
+  }
+  
+  /* Entry cards */
+  .entry-card {
+    background: rgba(45, 55, 72, 0.9);
+    color: #e2e8f0;
+    border-color: rgba(74, 85, 104, 0.3);
+  }
+  
+  .entry-header {
+    border-bottom-color: #4a5568;
+  }
+  
+  .entry-header h4 {
+    color: #81e6d9;
+  }
+  
+  .entry-content strong {
+    color: #cbd5e0;
+  }
+  
+  /* Edit forms */
+  .edit-form {
+    background: rgba(26, 32, 44, 0.95);
+    border-color: #667eea;
+  }
+  
+  .edit-form h4 {
+    color: #81e6d9;
+    border-bottom-color: #667eea;
+  }
+  
+  .form-group label {
+    color: #cbd5e0;
+  }
+  
+  .form-actions {
+    border-top-color: #4a5568;
+  }
+  
+  /* Journal content */
+  .journal-content {
+    background: rgba(45, 55, 72, 0.9);
+    color: #e2e8f0;
+    border-left-color: #667eea;
+  }
+  
+  .journal-content h2 {
+    color: #81e6d9;
+    border-bottom-color: #667eea;
+  }
+  
+  .journal-content pre {
+    background: rgba(26, 32, 44, 0.8);
+    color: #e2e8f0;
+    border-color: #4a5568;
+  }
+  
+  /* Modals */
+  .modal-content {
+    background: rgba(45, 55, 72, 0.95);
+    color: #e2e8f0;
+    border-color: rgba(74, 85, 104, 0.3);
+  }
+  
+  .modal-content h3 {
+    color: #cbd5e0;
+    border-bottom-color: #667eea;
+  }
+  
+  /* Jira tickets */
+  .jira-tickets-section {
+    background: rgba(26, 32, 44, 0.6);
+    border-color: #ffc107;
+  }
+  
+  .jira-tickets-section label {
+    color: #fbb040;
+  }
+  
+  .jira-ticket-item {
+    background: rgba(45, 55, 72, 0.8);
+    border-color: #4a5568;
+    color: #e2e8f0;
+  }
+  
+  .jira-ticket-item:hover {
+    background: rgba(45, 55, 72, 1);
+  }
+  
+  .ticket-summary {
+    color: #cbd5e0;
+  }
+  
+  /* Tags */
+  .available-tags {
+    background: rgba(26, 32, 44, 0.6);
+    border-color: rgba(102, 126, 234, 0.3);
+  }
+  
+  .tag-checkbox {
+    color: #e2e8f0;
+  }
+  
+  /* Reports */
+  .report-generator, .activity-report {
+    background: rgba(45, 55, 72, 0.9);
+    color: #e2e8f0;
+    border-color: rgba(74, 85, 104, 0.3);
+  }
+  
+  .report-section {
+    background: rgba(26, 32, 44, 0.4);
+    border-color: rgba(102, 126, 234, 0.2);
+  }
+  
+  .report-section h4 {
+    color: #cbd5e0;
+  }
+  
+  .project-bar, .activity-type-item {
+    background: rgba(45, 55, 72, 0.8);
+    border-color: #4a5568;
+  }
+  
+  .project-name, .activity-type {
+    color: #e2e8f0;
+  }
+  
+  .project-stats {
+    color: #a0aec0;
+  }
+  
+  .tags-cloud {
+    background: rgba(45, 55, 72, 0.8);
+    border-color: #4a5568;
+  }
+  
+  /* Messages */
+  .message {
+    border: 1px solid rgba(74, 85, 104, 0.3);
+  }
+  
+  .loading {
+    color: #81e6d9;
+  }
+  
+  /* Scrollbar */
+  ::-webkit-scrollbar-track {
+    background: #2d3748;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #4a5568 0%, #718096 100%);
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   }
 }
 
@@ -1479,5 +1667,124 @@ tr:last-child td {
   .date-input {
     max-width: none;
   }
+}
+
+/* Monthly Details Styles */
+.monthly-details {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.monthly-detail-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transition: all 0.3s ease;
+}
+
+.monthly-detail-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+}
+
+.monthly-header {
+  margin-bottom: 15px;
+}
+
+.monthly-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.monthly-name {
+  font-weight: 600;
+  font-size: 1.1em;
+  color: #495057;
+  text-transform: capitalize;
+}
+
+.monthly-hours {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 1em;
+}
+
+.monthly-projects,
+.monthly-tags {
+  margin-bottom: 12px;
+}
+
+.monthly-projects strong,
+.monthly-tags strong {
+  color: #495057;
+  font-size: 0.9em;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.monthly-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.monthly-breakdown-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.breakdown-item:hover {
+  background: #f1f3f4;
+  transform: translateX(4px);
+  transition: all 0.2s ease;
+}
+
+.monthly-item {
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.project-item {
+  background: #e3f2fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+}
+
+.tag-item {
+  background: #f3e5f5;
+  color: #7b1fa2;
+  border: 1px solid #e1bee7;
+}
+
+.hours-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  font-weight: 700;
+  min-width: 45px;
+  text-align: center;
 }
 

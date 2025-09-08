@@ -71,6 +71,35 @@ export default function JournalEntryForm({
     setEntry({ ...entry, [name]: value });
   };
 
+  const handleTimeRangeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    
+    // Format as HH:MM-HH:MM
+    if (value.length <= 4) {
+      // First time only: HH:MM
+      if (value.length >= 3) {
+        value = value.slice(0, 2) + ':' + value.slice(2);
+      }
+    } else {
+      // Both times: HH:MM-HH:MM
+      const firstTime = value.slice(0, 4);
+      const secondTime = value.slice(4, 8);
+      
+      let formatted = firstTime.slice(0, 2) + ':' + firstTime.slice(2);
+      if (secondTime.length > 0) {
+        formatted += '-';
+        if (secondTime.length >= 3) {
+          formatted += secondTime.slice(0, 2) + ':' + secondTime.slice(2);
+        } else {
+          formatted += secondTime;
+        }
+      }
+      value = formatted;
+    }
+    
+    setEntry({ ...entry, time_range: value });
+  };
+
   const handleLinkChange = (index: number, field: keyof Link, value: string) => {
     const newLinks = [...entry.links];
     newLinks[index] = { ...newLinks[index], [field]: value };
@@ -147,27 +176,31 @@ export default function JournalEntryForm({
           type="date" 
           name="date" 
           value={entry.date} 
-          onChange={(e) => {
-            handleChange(e);
-            // Fermer le calendrier après sélection
-            setTimeout(() => {
-              (e.target as HTMLInputElement).blur();
-            }, 100);
-          }}
+          onChange={handleChange}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === 'Escape') {
+            if (e.key === 'Escape') {
               (e.target as HTMLInputElement).blur();
             }
           }}
+          onBlur={(e) => {
+            // Le calendrier se ferme automatiquement quand on clique à l'extérieur
+          }}
           className="date-input"
-          title="Appuyez sur Entrée ou Échap pour fermer le calendrier"
+          title="Cliquez à l'extérieur ou appuyez sur Échap pour fermer"
           required 
         />
       </div>
 
       <div>
         <label>Plage horaire (ex. 14:00-16:30):</label>
-        <input type="text" name="time_range" value={entry.time_range} onChange={handleChange} placeholder="14:00-16:30" />
+        <input 
+          type="text" 
+          name="time_range" 
+          value={entry.time_range} 
+          onChange={handleTimeRangeChange} 
+          placeholder="14:00-16:30" 
+          maxLength={11}
+        />
       </div>
 
       <div>

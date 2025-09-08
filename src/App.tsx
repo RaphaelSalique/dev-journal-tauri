@@ -30,6 +30,9 @@ export default function App() {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportStartDate, setReportStartDate] = useState('');
   const [reportEndDate, setReportEndDate] = useState('');
+  
+  // État pour forcer le refresh de la liste des entrées
+  const [entriesRefreshKey, setEntriesRefreshKey] = useState(0);
 
   useEffect(() => {
     loadJournalDates();
@@ -94,6 +97,8 @@ export default function App() {
       const updatedContent = await invoke<string>('load_journal_file_cmd', { date: currentDate });
       setCurrentContent(updatedContent);
       await loadJournalDates();
+      // Forcer le refresh de la liste des entrées
+      setEntriesRefreshKey(prev => prev + 1);
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
     }
@@ -267,6 +272,35 @@ export default function App() {
     linkElement.click();
   };
 
+  const exportReportToDOCX = async () => {
+    if (!activityReport) return;
+    
+    try {
+      // Demander à l'utilisateur où sauvegarder le fichier
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const filePath = await save({
+        defaultPath: `rapport-activite-${reportStartDate}-${reportEndDate}.docx`,
+        filters: [{
+          name: 'Documents Word',
+          extensions: ['docx']
+        }]
+      });
+      
+      if (filePath) {
+        const result = await invoke<string>('export_activity_report_to_docx', {
+          startDate: reportStartDate,
+          endDate: reportEndDate,
+          filePath
+        });
+        
+        alert(`Rapport exporté avec succès!\n${result}`);
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'export DOCX:', error);
+      alert(`Erreur lors de l'export: ${error}`);
+    }
+  };
+
   return (
     <div className="container">
       <h1>Journal de Développement</h1>
@@ -304,20 +338,17 @@ export default function App() {
               <input 
                 type="date" 
                 value={currentDate} 
-                onChange={(e) => {
-                  loadJournal(e.target.value);
-                  // Fermer le calendrier après sélection
-                  setTimeout(() => {
-                    (e.target as HTMLInputElement).blur();
-                  }, 100);
-                }}
+                onChange={(e) => loadJournal(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === 'Escape') {
+                  if (e.key === 'Escape') {
                     (e.target as HTMLInputElement).blur();
                   }
                 }}
+                onBlur={(e) => {
+                  // Le calendrier se ferme automatiquement quand on clique à l'extérieur
+                }}
                 className="date-input"
-                title="Choisir une date spécifique - Appuyez sur Entrée ou Échap pour fermer"
+                title="Cliquez à l'extérieur ou appuyez sur Échap pour fermer"
               />
             </div>
           </div>
@@ -330,6 +361,7 @@ export default function App() {
           />
 
           <JournalEntriesList 
+            key={entriesRefreshKey}
             date={currentDate}
             onRefresh={loadJournalDates}
             projects={projects}
@@ -549,6 +581,16 @@ export default function App() {
                     type="date"
                     value={reportStartDate}
                     onChange={(e) => setReportStartDate(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Le calendrier se ferme automatiquement quand on clique à l'extérieur
+                    }}
+                    className="date-input"
+                    title="Cliquez à l'extérieur ou appuyez sur Échap pour fermer"
                   />
                 </div>
                 <div className="form-group">
@@ -557,6 +599,16 @@ export default function App() {
                     type="date"
                     value={reportEndDate}
                     onChange={(e) => setReportEndDate(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Le calendrier se ferme automatiquement quand on clique à l'extérieur
+                    }}
+                    className="date-input"
+                    title="Cliquez à l'extérieur ou appuyez sur Échap pour fermer"
                   />
                 </div>
                 <div className="form-group">
@@ -577,9 +629,14 @@ export default function App() {
             <div className="activity-report">
               <div className="report-header">
                 <h3>Rapport d'Activité - {activityReport.period_start} au {activityReport.period_end}</h3>
-                <button onClick={exportReport} className="btn-export">
-                  Exporter JSON
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={exportReport} className="btn-export">
+                    Exporter JSON
+                  </button>
+                  <button onClick={exportReportToDOCX} className="btn-export">
+                    Exporter DOCX
+                  </button>
+                </div>
               </div>
               
               {/* Résumé général */}
@@ -661,6 +718,76 @@ export default function App() {
                       <div key={type} className="activity-type-item">
                         <span className="activity-type">{type}</span>
                         <span className="activity-count">{count} fois</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Ventilation mensuelle avec détails */}
+              {activityReport.monthly_details && activityReport.monthly_details.length > 0 && (
+                <div className="report-section">
+                  <h4>Répartition par Mois</h4>
+                  <div className="monthly-details">
+                    {activityReport.monthly_details.map((monthData: any) => (
+                      <div key={monthData.month} className="monthly-detail-card">
+                        <div className="monthly-header">
+                          <div className="monthly-info">
+                            <span className="monthly-name">
+                              {new Date(monthData.month + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                            </span>
+                            <span className="monthly-hours">
+                              {monthData.hours.toFixed(1)}h
+                            </span>
+                          </div>
+                          <div className="progress-bar">
+                            <div 
+                              className="progress-fill"
+                              style={{ 
+                                width: `${(monthData.hours / activityReport.total_hours) * 100}%`,
+                                backgroundColor: '#667eea'
+                              }}
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Projets du mois avec heures */}
+                        {monthData.projects.length > 0 && (
+                          <div className="monthly-projects">
+                            <strong>Projets :</strong>
+                            <div className="monthly-breakdown-items">
+                              {monthData.projects.map((project: string) => (
+                                <div key={project} className="breakdown-item">
+                                  <span className="monthly-item project-item">
+                                    {project}
+                                  </span>
+                                  <span className="hours-badge">
+                                    {monthData.project_hours[project]?.toFixed(1) || '0.0'}h
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Tags du mois avec heures */}
+                        {monthData.tags.length > 0 && (
+                          <div className="monthly-tags">
+                            <strong>Tags :</strong>
+                            <div className="monthly-breakdown-items">
+                              {monthData.tags.map((tag: string) => (
+                                <div key={tag} className="breakdown-item">
+                                  <span className="monthly-item tag-item">
+                                    #{tag}
+                                  </span>
+                                  <span className="hours-badge">
+                                    {monthData.tag_hours[tag]?.toFixed(1) || '0.0'}h
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

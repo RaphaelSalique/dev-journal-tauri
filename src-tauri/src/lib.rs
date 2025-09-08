@@ -9,6 +9,7 @@ use crate::database::{Project, Tag};
 use crate::jira::{JiraClient, JiraTicket};
 use crate::file_manager::{JournalEntry, ParsedJournalEntry, save_journal_entry, load_journal_file, get_available_journal_dates, parse_journal_entries, update_journal_entry, delete_journal_entry};
 use std::collections::HashMap;
+use docx_rs::{Docx, Paragraph, Run};
 
 // État global pour le client Jira et la liste des tickets disponibles
 struct AppState {
@@ -627,6 +628,8 @@ struct ActivityReport {
     tags_summary: Vec<TagSummary>,
     activity_types: HashMap<String, usize>,
     daily_breakdown: HashMap<String, f64>,
+    monthly_breakdown: HashMap<String, f64>,
+    monthly_details: Vec<MonthlyDetail>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -642,6 +645,16 @@ struct TagSummary {
     name: String,
     count: usize,
     color: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct MonthlyDetail {
+    month: String,
+    hours: f64,
+    projects: Vec<String>,
+    tags: Vec<String>,
+    project_hours: HashMap<String, f64>,
+    tag_hours: HashMap<String, f64>,
 }
 
 #[tauri::command]
@@ -682,6 +695,11 @@ async fn generate_activity_report(
     let mut tags_map: HashMap<String, usize> = HashMap::new();
     let mut activity_types: HashMap<String, usize> = HashMap::new();
     let mut daily_breakdown: HashMap<String, f64> = HashMap::new();
+    let mut monthly_breakdown: HashMap<String, f64> = HashMap::new();
+    let mut monthly_projects: HashMap<String, std::collections::HashSet<String>> = HashMap::new();
+    let mut monthly_tags: HashMap<String, std::collections::HashSet<String>> = HashMap::new();
+    let mut monthly_project_hours: HashMap<String, HashMap<String, f64>> = HashMap::new();
+    let mut monthly_tag_hours: HashMap<String, HashMap<String, f64>> = HashMap::new();
     
     for entry in &all_entries {
         // Parseage de la durée (format "3h", "2h30", "1.5h")
@@ -703,7 +721,31 @@ async fn generate_activity_report(
         
         // Décomposition par jour
         let date = entry.timestamp.split(' ').next().unwrap_or("").to_string();
-        *daily_breakdown.entry(date).or_insert(0.0) += hours;
+        *daily_breakdown.entry(date.clone()).or_insert(0.0) += hours;
+        
+        // Décomposition par mois (format YYYY-MM)
+        if let Some(month) = date.get(0..7) { // Prendre les 7 premiers caractères (YYYY-MM)
+            *monthly_breakdown.entry(month.to_string()).or_insert(0.0) += hours;
+            
+            // Collecter les projets pour ce mois
+            monthly_projects.entry(month.to_string()).or_insert_with(std::collections::HashSet::new).insert(entry.project.clone());
+            
+            // Collecter les heures par projet pour ce mois
+            let month_project_hours = monthly_project_hours.entry(month.to_string()).or_insert_with(HashMap::new);
+            *month_project_hours.entry(entry.project.clone()).or_insert(0.0) += hours;
+            
+            // Collecter les tags pour ce mois
+            let monthly_tag_set = monthly_tags.entry(month.to_string()).or_insert_with(std::collections::HashSet::new);
+            for tag in &entry.tags {
+                monthly_tag_set.insert(tag.clone());
+            }
+            
+            // Collecter les heures par tag pour ce mois
+            let month_tag_hours = monthly_tag_hours.entry(month.to_string()).or_insert_with(HashMap::new);
+            for tag in &entry.tags {
+                *month_tag_hours.entry(tag.clone()).or_insert(0.0) += hours;
+            }
+        }
     }
     
     // Convertir en structures de résultat
@@ -726,6 +768,48 @@ async fn generate_activity_report(
         })
         .collect();
     
+    // Générer les détails mensuels
+    let mut monthly_details: Vec<MonthlyDetail> = monthly_breakdown
+        .iter()
+        .map(|(month, hours)| {
+            let projects = monthly_projects.get(month)
+                .map(|set| {
+                    let mut vec: Vec<String> = set.iter().cloned().collect();
+                    vec.sort();
+                    vec
+                })
+                .unwrap_or_default();
+            
+            let tags = monthly_tags.get(month)
+                .map(|set| {
+                    let mut vec: Vec<String> = set.iter().cloned().collect();
+                    vec.sort();
+                    vec
+                })
+                .unwrap_or_default();
+            
+            let project_hours = monthly_project_hours.get(month)
+                .cloned()
+                .unwrap_or_default();
+            
+            let tag_hours = monthly_tag_hours.get(month)
+                .cloned()
+                .unwrap_or_default();
+            
+            MonthlyDetail {
+                month: month.clone(),
+                hours: *hours,
+                projects,
+                tags,
+                project_hours,
+                tag_hours,
+            }
+        })
+        .collect();
+    
+    // Trier par mois
+    monthly_details.sort_by(|a, b| a.month.cmp(&b.month));
+    
     Ok(ActivityReport {
         period_start: start_date,
         period_end: end_date,
@@ -735,28 +819,243 @@ async fn generate_activity_report(
         tags_summary,
         activity_types,
         daily_breakdown,
+        monthly_breakdown,
+        monthly_details,
     })
+}
+
+#[tauri::command]
+async fn export_activity_report_to_docx(
+    start_date: String,
+    end_date: String,
+    file_path: String,
+) -> Result<String, String> {
+    // Générer le rapport d'activité
+    let report = generate_activity_report(start_date.clone(), end_date.clone()).await?;
+    
+    // Créer un nouveau document DOCX
+    let doc = Docx::new()
+        .add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text(&format!("Rapport d'Activité - {} au {}", start_date, end_date)).bold())
+                .style("Title")
+        )
+        .add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text(""))
+        )
+        // Résumé
+        .add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text("Résumé").bold().size(28))
+        )
+        .add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text(&format!("• Total d'entrées: {}", report.total_entries)))
+        )
+        .add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text(&format!("• Total d'heures: {:.1}h", report.total_hours)))
+        )
+        .add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text(&format!("• Moyenne par jour: {:.1}h", 
+                    if report.daily_breakdown.len() > 0 { 
+                        report.total_hours / report.daily_breakdown.len() as f64 
+                    } else { 
+                        0.0 
+                    }
+                )))
+        )
+        .add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text(""))
+        );
+
+    let mut doc = doc;
+
+    // Projets
+    if !report.projects_summary.is_empty() {
+        doc = doc.add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text("Répartition par Projets").bold().size(28))
+        );
+        
+        for project in &report.projects_summary {
+            let percentage = (project.hours / report.total_hours) * 100.0;
+            doc = doc.add_paragraph(
+                Paragraph::new()
+                    .add_run(Run::new().add_text(&format!("• {}: {} entrées, {:.1}h ({:.1}%)", 
+                        project.name, project.entries, project.hours, percentage)))
+            );
+        }
+        
+        doc = doc.add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text(""))
+        );
+    }
+
+    // Ventilation mensuelle détaillée
+    if !report.monthly_details.is_empty() {
+        doc = doc.add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text("Répartition par Mois").bold().size(28))
+        );
+        
+        for month_detail in &report.monthly_details {
+            let month_name = format!("{}-01", month_detail.month);
+            if let Ok(date) = chrono::NaiveDate::parse_from_str(&month_name, "%Y-%m-%d") {
+                let formatted_month = date.format("%B %Y").to_string();
+                
+                // Titre du mois avec total d'heures
+                doc = doc.add_paragraph(
+                    Paragraph::new()
+                        .add_run(Run::new().add_text(&format!("• {}: {:.1}h", formatted_month, month_detail.hours)).bold())
+                );
+                
+                // Détail par projets
+                if !month_detail.project_hours.is_empty() {
+                    doc = doc.add_paragraph(
+                        Paragraph::new()
+                            .add_run(Run::new().add_text("  Projets:"))
+                    );
+                    
+                    let mut project_sorted: Vec<_> = month_detail.project_hours.iter().collect();
+                    project_sorted.sort_by_key(|(name, _)| *name);
+                    
+                    for (project_name, hours) in project_sorted {
+                        doc = doc.add_paragraph(
+                            Paragraph::new()
+                                .add_run(Run::new().add_text(&format!("    - {}: {:.1}h", project_name, hours)))
+                        );
+                    }
+                }
+                
+                // Détail par tags
+                if !month_detail.tag_hours.is_empty() {
+                    doc = doc.add_paragraph(
+                        Paragraph::new()
+                            .add_run(Run::new().add_text("  Tags:"))
+                    );
+                    
+                    let mut tag_sorted: Vec<_> = month_detail.tag_hours.iter().collect();
+                    tag_sorted.sort_by_key(|(name, _)| *name);
+                    
+                    for (tag_name, hours) in tag_sorted {
+                        doc = doc.add_paragraph(
+                            Paragraph::new()
+                                .add_run(Run::new().add_text(&format!("    - #{}: {:.1}h", tag_name, hours)))
+                        );
+                    }
+                }
+                
+                // Espace entre les mois
+                doc = doc.add_paragraph(
+                    Paragraph::new()
+                        .add_run(Run::new().add_text(""))
+                );
+            }
+        }
+    }
+
+    // Types d'activité
+    if !report.activity_types.is_empty() {
+        doc = doc.add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text("Types d'Activité").bold().size(28))
+        );
+        
+        for (activity_type, count) in &report.activity_types {
+            doc = doc.add_paragraph(
+                Paragraph::new()
+                    .add_run(Run::new().add_text(&format!("• {}: {} fois", activity_type, count)))
+            );
+        }
+        
+        doc = doc.add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text(""))
+        );
+    }
+
+    // Tags
+    if !report.tags_summary.is_empty() {
+        doc = doc.add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text("Tags les plus utilisés").bold().size(28))
+        );
+        
+        for tag in &report.tags_summary {
+            doc = doc.add_paragraph(
+                Paragraph::new()
+                    .add_run(Run::new().add_text(&format!("• {}: {} fois", tag.name, tag.count)))
+            );
+        }
+    }
+
+    // Sauvegarder le document
+    let file = std::fs::File::create(&file_path).map_err(|e| e.to_string())?;
+    doc.build().pack(file).map_err(|e| e.to_string())?;
+    
+    Ok(format!("Rapport exporté vers: {}", file_path))
 }
 
 fn parse_duration(duration: &str) -> f64 {
     let duration = duration.trim().to_lowercase();
+    let mut total_minutes = 0.0;
     
-    if let Some(hours_str) = duration.strip_suffix('h') {
-        // Format "3h" ou "2.5h"
-        hours_str.parse::<f64>().unwrap_or(0.0)
-    } else if duration.contains("h") {
-        // Format "2h30" -> 2.5h
-        if let Some((hours, minutes)) = duration.split_once('h') {
-            let h = hours.parse::<f64>().unwrap_or(0.0);
-            let m = minutes.parse::<f64>().unwrap_or(0.0) / 60.0;
-            h + m
-        } else {
-            0.0
+    // Gérer différents formats de durée et tout convertir en minutes
+    if duration.contains("h") {
+        // Formats avec heures: "3h", "2.5h", "2h30", "2h30min", etc.
+        if let Some((hours_part, rest)) = duration.split_once('h') {
+            // Parser les heures
+            if let Ok(hours) = hours_part.parse::<f64>() {
+                total_minutes += hours * 60.0;
+            }
+            
+            // Parser les minutes restantes si présentes
+            if !rest.is_empty() {
+                let minutes_str = rest.trim()
+                    .replace("min", "")
+                    .replace("minute", "")
+                    .replace("minutes", "")
+                    .trim()
+                    .to_string();
+                    
+                if let Ok(minutes) = minutes_str.parse::<f64>() {
+                    total_minutes += minutes;
+                }
+            }
+        }
+    } else if duration.contains("min") {
+        // Format purement en minutes: "30min", "45 minutes"
+        let minutes_str = duration
+            .replace("min", "")
+            .replace("minute", "")
+            .replace("minutes", "")
+            .trim()
+            .to_string();
+            
+        if let Ok(minutes) = minutes_str.parse::<f64>() {
+            total_minutes = minutes;
         }
     } else {
-        // Essayer de parser directement comme nombre
-        duration.parse::<f64>().unwrap_or(0.0)
+        // Format numérique pur: "30", "1.5", etc.
+        // Assumer que c'est en minutes si < 10, sinon en heures décimales
+        if let Ok(value) = duration.parse::<f64>() {
+            if value < 10.0 {
+                // Probablement des heures (ex: "2", "3.5")
+                total_minutes = value * 60.0;
+            } else {
+                // Probablement des minutes (ex: "30", "45")
+                total_minutes = value;
+            }
+        }
     }
+    
+    // Retourner en heures (pour compatibilité avec le reste du code)
+    total_minutes / 60.0
 }
 
 // === COMMANDES POUR LES PRÉFÉRENCES (Version simple avec Store temporaire) ===
@@ -830,7 +1129,8 @@ pub fn run() {
             toggle_tag_status,
             get_preference,
             set_preference,
-            generate_activity_report
+            generate_activity_report,
+            export_activity_report_to_docx
         ])
         .setup(|app| {
             // Charger le fichier .env s'il existe

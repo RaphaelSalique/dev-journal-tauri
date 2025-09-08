@@ -1,6 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
-use tauri::State;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

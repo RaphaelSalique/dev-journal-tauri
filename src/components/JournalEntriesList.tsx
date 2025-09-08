@@ -154,6 +154,57 @@ export default function JournalEntriesList({
     }
   };
 
+  const handleTimeRangeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    
+    // Format as HH:MM-HH:MM
+    if (value.length <= 4) {
+      // First time only: HH:MM
+      if (value.length >= 3) {
+        value = value.slice(0, 2) + ':' + value.slice(2);
+      }
+    } else {
+      // Both times: HH:MM-HH:MM
+      const firstTime = value.slice(0, 4);
+      const secondTime = value.slice(4, 8);
+      
+      let formatted = firstTime.slice(0, 2) + ':' + firstTime.slice(2);
+      if (secondTime.length > 0) {
+        formatted += '-';
+        if (secondTime.length >= 3) {
+          formatted += secondTime.slice(0, 2) + ':' + secondTime.slice(2);
+        } else {
+          formatted += secondTime;
+        }
+      }
+      value = formatted;
+    }
+    
+    handleFormChange('time_range', value);
+  };
+
+  const formatDuration = (duration: string) => {
+    // If duration already contains units like "min", "h", "heures", etc., return as is
+    if (duration.match(/(min|minute|h|heure|hr|hour)/i)) {
+      return duration;
+    }
+    
+    // If it's just a number, assume it's in minutes
+    const numMatch = duration.match(/^\d+$/);
+    if (numMatch) {
+      const num = parseInt(numMatch[0]);
+      return `${num} minute${num > 1 ? 's' : ''}`;
+    }
+    
+    // If it contains time format like "2h30", "1h", "30min", return as is but ensure proper formatting
+    if (duration.match(/^\d+(h|min)(\d+min?)?$/i)) {
+      return duration.replace(/h/gi, 'h ').replace(/min$/i, ' minutes').replace(/^\d+h$/, (match) => match + 'eure' + (match.charAt(0) !== '1' ? 's' : ''));
+    }
+    
+    // Otherwise return the original duration
+    return duration;
+  };
+
   const handleJiraTicketToggle = async (ticketKey: string) => {
     if (!editForm) return;
     
@@ -237,8 +288,9 @@ export default function JournalEntriesList({
                       <input 
                         type="text" 
                         value={editForm?.time_range || ''}
-                        onChange={(e) => handleFormChange('time_range', e.target.value)}
+                        onChange={handleTimeRangeChange}
                         placeholder="14:00-16:30"
+                        maxLength={11}
                       />
                     </div>
                     
@@ -353,7 +405,7 @@ export default function JournalEntriesList({
                     <div><strong>Projet:</strong> {entry.project}</div>
                     {entry.time_range && <div><strong>Plage horaire:</strong> {entry.time_range}</div>}
                     <div><strong>Type:</strong> {entry.entry_type}</div>
-                    <div><strong>Durée:</strong> {entry.duration}</div>
+                    <div><strong>Durée:</strong> {formatDuration(entry.duration)}</div>
                     <div><strong>Description:</strong> {entry.description}</div>
                     
                     {entry.results && <div><strong>Résultats:</strong> {entry.results}</div>}
