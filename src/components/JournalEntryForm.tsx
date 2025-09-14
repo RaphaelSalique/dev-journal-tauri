@@ -182,7 +182,7 @@ export default function JournalEntryForm({
               (e.target as HTMLInputElement).blur();
             }
           }}
-          onBlur={(e) => {
+          onBlur={() => {
             // Le calendrier se ferme automatiquement quand on clique à l'extérieur
           }}
           className="date-input"

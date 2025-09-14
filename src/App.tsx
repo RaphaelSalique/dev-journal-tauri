@@ -4,6 +4,7 @@ import JournalEntryForm from './components/JournalEntryForm';
 import JournalEntriesList from './components/JournalEntriesList';
 import ProjectModal from './components/ProjectModal';
 import TagModal from './components/TagModal';
+import ThemeToggle from './components/ThemeToggle';
 import "./App.css";
 
 export default function App() {
@@ -33,12 +34,27 @@ export default function App() {
   
   // État pour forcer le refresh de la liste des entrées
   const [entriesRefreshKey, setEntriesRefreshKey] = useState(0);
+  
+  // État pour le thème
+  const [isDarkTheme, setIsDarkTheme] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    return saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
 
   useEffect(() => {
     loadJournalDates();
     loadSavedJqlQuery();
     loadProjectsAndTags();
   }, []);
+  
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark-theme', isDarkTheme);
+    localStorage.setItem('theme', isDarkTheme ? 'dark' : 'light');
+  }, [isDarkTheme]);
+  
+  const toggleTheme = () => {
+    setIsDarkTheme(prev => !prev);
+  };
 
   const loadProjectsAndTags = async () => {
     try {
@@ -303,7 +319,10 @@ export default function App() {
 
   return (
     <div className="container">
-      <h1>Journal de Développement</h1>
+      <div className="app-header">
+        <h1>Journal de Développement</h1>
+        <ThemeToggle isDark={isDarkTheme} onToggle={toggleTheme} />
+      </div>
 
       <div className="tab-navigation">
         <button onClick={() => handleTabChange('journal')} className="tab-button">
@@ -344,7 +363,7 @@ export default function App() {
                     (e.target as HTMLInputElement).blur();
                   }
                 }}
-                onBlur={(e) => {
+                onBlur={() => {
                   // Le calendrier se ferme automatiquement quand on clique à l'extérieur
                 }}
                 className="date-input"
@@ -586,7 +605,7 @@ export default function App() {
                         (e.target as HTMLInputElement).blur();
                       }
                     }}
-                    onBlur={(e) => {
+                    onBlur={() => {
                       // Le calendrier se ferme automatiquement quand on clique à l'extérieur
                     }}
                     className="date-input"
@@ -604,7 +623,7 @@ export default function App() {
                         (e.target as HTMLInputElement).blur();
                       }
                     }}
-                    onBlur={(e) => {
+                    onBlur={() => {
                       // Le calendrier se ferme automatiquement quand on clique à l'extérieur
                     }}
                     className="date-input"
