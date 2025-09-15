@@ -208,7 +208,7 @@ export default function JournalEntryForm({
         {projects.length > 0 ? (
           <select name="project" value={entry.project} onChange={handleChange} required>
             <option value="">Sélectionner un projet</option>
-            {projects.map(project => (
+            {projects.sort(function (a, b) { return a.name.localeCompare(b.name); }).map(project => (
               <option key={project.id} value={project.name}>{project.name}</option>
             ))}
           </select>
@@ -220,12 +220,13 @@ export default function JournalEntryForm({
       <div>
         <label>Type d'activité:</label>
         <select name="entry_type" value={entry.entry_type} onChange={handleChange}>
-          <option value="développement">Développement</option>
-          <option value="revue de code">Revue de code</option>
-          <option value="réunion">Réunion</option>
           <option value="debug">Debug</option>
+          <option value="développement">Développement</option>
           <option value="documentation">Documentation</option>
           <option value="formation">Formation</option>
+          <option value="infrastructure">Infrastructure</option>
+          <option value="réunion">Réunion</option>
+          <option value="revue de code">Revue de code</option>
           <option value="veille technologique">Veille technologique</option>
         </select>
       </div>

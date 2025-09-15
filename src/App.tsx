@@ -468,7 +468,7 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {projects.map(project => (
+                {projects.sort(function (a, b) { return a.name.localeCompare(b.name); }).map(project => (
                   <tr key={project.id}>
                     <td>{project.name}</td>
                     <td>{project.description}</td>
@@ -539,7 +539,7 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {tags.map(tag => (
+                {tags.sort(function (a, b) { return a.name.localeCompare(b.name); }).map(tag => (
                   <tr key={tag.id}>
                     <td>{tag.name}</td>
                     <td>{tag.description}</td>
