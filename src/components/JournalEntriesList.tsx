@@ -75,11 +75,16 @@ export default function JournalEntriesList({
 
   const loadTicketsForEntry = async (entry: ParsedJournalEntry) => {
     try {
-      const selectedKeys = entry.jira_tickets.map(t => t.key);
+      const selectedKeys = new Set(entry.jira_tickets.map(t => t.key));
       const tickets = await invoke<JiraTicketForEntry[]>('get_available_tickets_for_entry', {
-        selectedTicketKeys: selectedKeys
+        selectedTicketKeys: Array.from(selectedKeys)
       });
-      setTicketsForEntry(tickets);
+      
+      const updatedTickets = tickets.map(ticket => ({
+        ...ticket,
+        is_selected: selectedKeys.has(ticket.key)
+      }));
+      setTicketsForEntry(updatedTickets);
     } catch (error) {
       console.error('Erreur lors du chargement des tickets:', error);
     }
@@ -207,29 +212,17 @@ export default function JournalEntriesList({
 
   const handleJiraTicketToggle = async (ticketKey: string) => {
     if (!editForm) return;
-    
-    const existingIndex = editForm.jira_tickets.findIndex(t => t.key === ticketKey);
-    let newTickets = [...editForm.jira_tickets];
-    
-    if (existingIndex >= 0) {
-      // Enlever le ticket
-      newTickets.splice(existingIndex, 1);
-    } else {
-      // Ajouter le ticket
-      const ticket = ticketsForEntry.find(t => t.key === ticketKey);
-      if (ticket) {
-        newTickets.push({
-          key: ticket.key,
-          summary: ticket.summary
-        });
-      }
-    }
-    
-    const updatedForm = { ...editForm, jira_tickets: newTickets };
-    setEditForm(updatedForm);
-    
-    // Recharger la liste des tickets avec les nouvelles sélections
-    await loadTicketsForEntry(updatedForm);
+
+    const newTicketsForEntry = ticketsForEntry.map(t =>
+      t.key === ticketKey ? { ...t, is_selected: !t.is_selected } : t
+    );
+    setTicketsForEntry(newTicketsForEntry);
+
+    const newJiraTickets = newTicketsForEntry
+      .filter(t => t.is_selected)
+      .map(t => ({ key: t.key, summary: t.summary }));
+
+    setEditForm({ ...editForm, jira_tickets: newJiraTickets });
   };
 
   if (loading) {

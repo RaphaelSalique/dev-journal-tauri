@@ -65,7 +65,7 @@ impl JiraClient {
         let auth_header = format!("{}:{}", self.email, self.api_token);
         let encoded = general_purpose::STANDARD.encode(auth_header);
 
-        let url = format!("{}/rest/api/3/search", self.base_url);
+        let url = format!("{}/rest/api/3/search/jql", self.base_url);
         
         let body = serde_json::json!({
             "jql": jql,

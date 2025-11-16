@@ -243,29 +243,30 @@ pub fn parse_journal_entries(content: &str) -> Vec<ParsedJournalEntry> {
                 let line_replaced = line.replace("**Liens**:", "");
                 let links_str = line_replaced.trim();
                 if !links_str.is_empty() && links_str != "Aucun" {
-                    // Parse d'abord les tickets Jira [TICKET](URL)
-                    let jira_regex = regex::Regex::new(r"\[([A-Z]+-\d+)\]\([^)]*browse/([^)]+)\)").unwrap();
+                    // Parse d'abord les tickets Jira [KEY - SUMMARY](URL) ou [KEY](URL)
+                    let jira_regex = regex::Regex::new(r"(\[([A-Z]+-\d+)(?:\s*-\s*([^\]]+))?\]\([^)]*browse/([^)]+)\))").unwrap();
+                    let mut non_jira_links_str = links_str.to_string(); // Prepare a string to filter out Jira links
+
                     for cap in jira_regex.captures_iter(links_str) {
-                        if let Some(key) = cap.get(1) {
+                        if let (Some(full_match), Some(key_match)) = (cap.get(0), cap.get(2)) { // Cap 0 is the full match
+                            let summary = cap.get(3).map(|m| m.as_str().to_string());
                             entry.jira_tickets.push(JiraTicketRef {
-                                key: key.as_str().to_string(),
-                                summary: None,
+                                key: key_match.as_str().to_string(),
+                                summary,
                             });
+                            // Remove the identified Jira link from non_jira_links_str
+                            non_jira_links_str = non_jira_links_str.replace(full_match.as_str(), "");
                         }
                     }
                     
-                    // Parse les autres liens markdown [text](url)
+                    // Parse les autres liens markdown [text](url) from the filtered string
                     let link_regex = regex::Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap();
-                    for cap in link_regex.captures_iter(links_str) {
+                    for cap in link_regex.captures_iter(&non_jira_links_str) { // Use the filtered string
                         if let (Some(text), Some(url)) = (cap.get(1), cap.get(2)) {
-                            let text_str = text.as_str().to_string();
-                            // Skip les liens Jira car ils sont déjà parsés
-                            if !text_str.matches(r"^[A-Z]+-\d+$").any(|_| true) {
-                                entry.links.push(Link {
-                                    text: text_str,
-                                    url: url.as_str().to_string(),
-                                });
-                            }
+                            entry.links.push(Link {
+                                text: text.as_str().to_string(),
+                                url: url.as_str().to_string(),
+                            });
                         }
                     }
                 }
@@ -280,8 +281,7 @@ pub fn parse_journal_entries(content: &str) -> Vec<ParsedJournalEntry> {
     entries
 }
 
-pub fn generate_markdown_entry(entry: &ParsedJournalEntry) -> String {
-    let timestamp = if entry.timestamp.contains('/') {
+pub fn generate_markdown_entry(entry: &ParsedJournalEntry) -> String {    let timestamp = if entry.timestamp.contains('/') {
         entry.timestamp.clone()
     } else {
         // Utiliser le timestamp tel quel
@@ -307,26 +307,35 @@ pub fn generate_markdown_entry(entry: &ParsedJournalEntry) -> String {
         content.push_str(&format!("**Blocages**: {}  \n", entry.blockers));
     }
     
-    // Générer les liens Jira et les liens normaux ensemble
-    let mut all_links = Vec::new();
-    
-    // Ajouter les tickets Jira
+    // Générer les liens Jira
+    let mut jira_markdown_links = Vec::new();
     if !entry.jira_tickets.is_empty() {
         let base_url = std::env::var("JIRA_BASE_URL").unwrap_or_else(|_| "https://votre-instance.atlassian.net".to_string());
         for ticket in &entry.jira_tickets {
-            all_links.push(format!("[{}]({}/browse/{})", ticket.key, base_url, ticket.key));
+            let display_text = if let Some(summary) = &ticket.summary {
+                format!("{} - {}", ticket.key, summary)
+            } else {
+                ticket.key.clone()
+            };
+            jira_markdown_links.push(format!("[{}]({}/browse/{})", display_text, base_url, ticket.key));
         }
     }
-    
-    // Ajouter les liens normaux
+
+    // Générer les liens normaux
+    let mut regular_markdown_links = Vec::new();
     if !entry.links.is_empty() {
         for link in entry.links.iter().filter(|link| !link.text.is_empty() && !link.url.is_empty()) {
-            all_links.push(format!("[{}]({})", link.text, link.url));
+            regular_markdown_links.push(format!("[{}]({})", link.text, link.url));
         }
     }
+
+    // Combiner tous les liens pour la section "Liens"
+    let mut all_markdown_links = Vec::new();
+    all_markdown_links.extend(jira_markdown_links);
+    all_markdown_links.extend(regular_markdown_links);
     
-    if !all_links.is_empty() {
-        content.push_str(&format!("**Liens**: {}  \n", all_links.join(", ")));
+    if !all_markdown_links.is_empty() {
+        content.push_str(&format!("**Liens**: {}  \n", all_markdown_links.join(", ")));
     }
     
     let tags_str = if entry.tags.is_empty() {
@@ -360,7 +369,7 @@ pub fn update_journal_entry(date: &str, entry_index: usize, updated_entry: &Pars
             timestamp: entries[entry_index].timestamp.clone(),
             ..updated_entry.clone()
         };
-        
+
         // Régénérer le contenu complet
         let new_content = entries.iter()
             .map(|entry| generate_markdown_entry(entry))
