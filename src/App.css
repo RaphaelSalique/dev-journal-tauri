@@ -1338,8 +1338,10 @@ tr:last-child td {
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  overflow-y: auto;
+  padding: 32px 16px;
   z-index: 1000;
 }
 
@@ -1354,6 +1356,7 @@ tr:last-child td {
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  margin: 0 auto;
 }
 
 .modal-content h3 {
@@ -1372,9 +1375,26 @@ tr:last-child td {
 .color-input-group input[type="color"] {
   width: 50px;
   height: 35px;
-  border: none;
+  padding: 0;
+  border: 1px solid rgba(102, 126, 234, 0.25);
   border-radius: 8px;
   cursor: pointer;
+  background: transparent;
+  overflow: hidden;
+}
+
+.color-input-group input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.color-input-group input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 7px;
+}
+
+.color-input-group input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: 7px;
 }
 
 .color-input-group input[type="text"] {
@@ -2076,4 +2096,3 @@ tr:last-child td {
   min-width: 45px;
   text-align: center;
 }
-

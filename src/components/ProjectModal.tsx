@@ -43,6 +43,8 @@ export default function ProjectModal({ show, onClose, onSave, project }: Project
     onSave(formData);
   };
 
+  const isValidHexColor = (value: string) => /^#[0-9a-fA-F]{6}$/.test(value);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
@@ -85,7 +87,7 @@ export default function ProjectModal({ show, onClose, onSave, project }: Project
               <input
                 type="color"
                 name="color"
-                value={formData.color}
+                value={isValidHexColor(formData.color) ? formData.color : '#007bff'}
                 onChange={handleChange}
               />
               <input

@@ -43,6 +43,8 @@ export default function TagModal({ show, onClose, onSave, tag }: TagModalProps) 
     onSave(formData);
   };
 
+  const isValidHexColor = (value: string) => /^#[0-9a-fA-F]{6}$/.test(value);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
@@ -97,7 +99,7 @@ export default function TagModal({ show, onClose, onSave, tag }: TagModalProps) 
               <input
                 type="color"
                 name="color"
-                value={formData.color}
+                value={isValidHexColor(formData.color) ? formData.color : '#6c757d'}
                 onChange={handleChange}
               />
               <input
