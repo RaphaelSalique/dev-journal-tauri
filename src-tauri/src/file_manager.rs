@@ -1,7 +1,7 @@
-use std::fs;
-use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JournalEntry {
@@ -26,22 +26,82 @@ pub struct Link {
 }
 
 pub fn get_journal_dir() -> Result<PathBuf> {
-    let home_dir = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Impossible de trouver le répertoire home"))?;
+    let home_dir = dirs::home_dir()
+        .ok_or_else(|| anyhow::anyhow!("Impossible de trouver le répertoire home"))?;
     let journal_dir = home_dir.join("Documents").join("DevJournal");
-    
+
     if !journal_dir.exists() {
         fs::create_dir_all(&journal_dir)?;
     }
-    
+
     Ok(journal_dir)
+}
+
+fn build_journal_file_path(journal_dir: &Path, date: &str) -> Result<PathBuf> {
+    let mut parts = date.split('-');
+    let year = parts
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("Date invalide: année manquante"))?;
+    let month = parts
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("Date invalide: mois manquant"))?;
+    let day = parts
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("Date invalide: jour manquant"))?;
+
+    if parts.next().is_some()
+        || year.len() != 4
+        || month.len() != 2
+        || day.len() != 2
+        || !year.chars().all(|c| c.is_ascii_digit())
+        || !month.chars().all(|c| c.is_ascii_digit())
+        || !day.chars().all(|c| c.is_ascii_digit())
+    {
+        return Err(anyhow::anyhow!(
+            "Format de date invalide: attendu YYYY-MM-DD"
+        ));
+    }
+
+    Ok(journal_dir
+        .join(year)
+        .join(month)
+        .join(format!("{}.md", date)))
+}
+
+fn collect_journal_dates_in_dir(dir: &Path, dates: &mut Vec<String>) -> Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            collect_journal_dates_in_dir(&path, dates)?;
+            continue;
+        }
+
+        if path.extension().and_then(|ext| ext.to_str()) != Some("md") {
+            continue;
+        }
+
+        if let Some(date_str) = path.file_stem().and_then(|stem| stem.to_str()) {
+            if date_str.len() == 10 && date_str.matches('-').count() == 2 {
+                dates.push(date_str.to_string());
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub fn save_journal_entry(date: &str, entry: JournalEntry) -> Result<()> {
     let journal_dir = get_journal_dir()?;
-    let file_path = journal_dir.join(format!("{}.md", date));
-    
+    let file_path = build_journal_file_path(&journal_dir, date)?;
+    let parent_dir = file_path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Impossible de déterminer le dossier parent du journal"))?;
+    fs::create_dir_all(parent_dir)?;
+
     let content = format_entry_as_markdown(&entry);
-    
+
     if file_path.exists() {
         // Append to existing file
         let mut existing_content = fs::read_to_string(&file_path)?;
@@ -52,14 +112,14 @@ pub fn save_journal_entry(date: &str, entry: JournalEntry) -> Result<()> {
         // Create new file
         fs::write(&file_path, content)?;
     }
-    
+
     Ok(())
 }
 
 pub fn load_journal_file(date: &str) -> Result<String> {
     let journal_dir = get_journal_dir()?;
-    let file_path = journal_dir.join(format!("{}.md", date));
-    
+    let file_path = build_journal_file_path(&journal_dir, date)?;
+
     if file_path.exists() {
         Ok(fs::read_to_string(file_path)?)
     } else {
@@ -69,31 +129,14 @@ pub fn load_journal_file(date: &str) -> Result<String> {
 
 pub fn get_available_journal_dates() -> Result<Vec<String>> {
     let journal_dir = get_journal_dir()?;
-    
+
     if !journal_dir.exists() {
         return Ok(vec![]);
     }
-    
+
     let mut dates = Vec::new();
-    
-    for entry in fs::read_dir(journal_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        
-        if let Some(extension) = path.extension() {
-            if extension == "md" {
-                if let Some(file_stem) = path.file_stem() {
-                    if let Some(date_str) = file_stem.to_str() {
-                        // Valider que c'est un format de date
-                        if date_str.len() == 10 && date_str.matches('-').count() == 2 {
-                            dates.push(date_str.to_string());
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
+    collect_journal_dates_in_dir(&journal_dir, &mut dates)?;
+
     dates.sort();
     dates.reverse(); // Plus récent en premier
     Ok(dates)
@@ -121,30 +164,30 @@ pub struct JiraTicketRef {
     pub summary: Option<String>,
 }
 
-// Parse les entrées d'un fichier journal 
+// Parse les entrées d'un fichier journal
 pub fn parse_journal_entries(content: &str) -> Vec<ParsedJournalEntry> {
     if content.is_empty() {
         return vec![];
     }
-    
+
     let mut entries = Vec::new();
     let sections: Vec<&str> = content.split("## ").collect();
-    
+
     for section in sections {
         if section.trim().is_empty() {
             continue;
         }
-        
+
         let lines: Vec<&str> = section.lines().collect();
         if lines.is_empty() {
             continue;
         }
-        
+
         let timestamp = lines[0].trim().to_string();
         if timestamp.is_empty() {
             continue;
         }
-        
+
         let mut entry = ParsedJournalEntry {
             timestamp,
             project: String::new(),
@@ -159,11 +202,11 @@ pub fn parse_journal_entries(content: &str) -> Vec<ParsedJournalEntry> {
             reflections: String::new(),
             jira_tickets: Vec::new(),
         };
-        
+
         let mut i = 1;
         while i < lines.len() {
             let line = lines[i].trim();
-            
+
             if line.starts_with("**Projet**:") {
                 entry.project = line.replace("**Projet**:", "").trim().to_string();
             } else if line.starts_with("**Description**:") {
@@ -181,14 +224,19 @@ pub fn parse_journal_entries(content: &str) -> Vec<ParsedJournalEntry> {
                 entry.description = description;
                 continue;
             } else if line.starts_with("**Durée**:") {
-                entry.duration = line.replace("**Durée**:", "").replace("minutes", "").trim().to_string();
+                entry.duration = line
+                    .replace("**Durée**:", "")
+                    .replace("minutes", "")
+                    .trim()
+                    .to_string();
             } else if line.starts_with("**Tags**:") {
                 let tags_replaced = line.replace("**Tags**:", "");
                 let tags_str = tags_replaced.trim();
                 entry.tags = if tags_str == "Aucun" || tags_str.is_empty() {
                     Vec::new()
                 } else {
-                    tags_str.split_whitespace()
+                    tags_str
+                        .split_whitespace()
                         .map(|tag| tag.replace('#', ""))
                         .filter(|tag| !tag.is_empty())
                         .collect()
@@ -244,24 +292,30 @@ pub fn parse_journal_entries(content: &str) -> Vec<ParsedJournalEntry> {
                 let links_str = line_replaced.trim();
                 if !links_str.is_empty() && links_str != "Aucun" {
                     // Parse d'abord les tickets Jira [KEY - SUMMARY](URL) ou [KEY](URL)
-                    let jira_regex = regex::Regex::new(r"(\[([A-Z]+-\d+)(?:\s*-\s*([^\]]+))?\]\([^)]*browse/([^)]+)\))").unwrap();
+                    let jira_regex = regex::Regex::new(
+                        r"(\[([A-Z]+-\d+)(?:\s*-\s*([^\]]+))?\]\([^)]*browse/([^)]+)\))",
+                    )
+                    .unwrap();
                     let mut non_jira_links_str = links_str.to_string(); // Prepare a string to filter out Jira links
 
                     for cap in jira_regex.captures_iter(links_str) {
-                        if let (Some(full_match), Some(key_match)) = (cap.get(0), cap.get(2)) { // Cap 0 is the full match
+                        if let (Some(full_match), Some(key_match)) = (cap.get(0), cap.get(2)) {
+                            // Cap 0 is the full match
                             let summary = cap.get(3).map(|m| m.as_str().to_string());
                             entry.jira_tickets.push(JiraTicketRef {
                                 key: key_match.as_str().to_string(),
                                 summary,
                             });
                             // Remove the identified Jira link from non_jira_links_str
-                            non_jira_links_str = non_jira_links_str.replace(full_match.as_str(), "");
+                            non_jira_links_str =
+                                non_jira_links_str.replace(full_match.as_str(), "");
                         }
                     }
-                    
+
                     // Parse les autres liens markdown [text](url) from the filtered string
                     let link_regex = regex::Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap();
-                    for cap in link_regex.captures_iter(&non_jira_links_str) { // Use the filtered string
+                    for cap in link_regex.captures_iter(&non_jira_links_str) {
+                        // Use the filtered string
                         if let (Some(text), Some(url)) = (cap.get(1), cap.get(2)) {
                             entry.links.push(Link {
                                 text: text.as_str().to_string(),
@@ -271,60 +325,69 @@ pub fn parse_journal_entries(content: &str) -> Vec<ParsedJournalEntry> {
                     }
                 }
             }
-            
+
             i += 1;
         }
-        
+
         entries.push(entry);
     }
-    
+
     entries
 }
 
-pub fn generate_markdown_entry(entry: &ParsedJournalEntry) -> String {    let timestamp = if entry.timestamp.contains('/') {
+pub fn generate_markdown_entry(entry: &ParsedJournalEntry) -> String {
+    let timestamp = if entry.timestamp.contains('/') {
         entry.timestamp.clone()
     } else {
         // Utiliser le timestamp tel quel
         entry.timestamp.clone()
     };
-    
+
     let mut content = format!("## {}\n", timestamp);
     content.push_str(&format!("**Projet**: {}  \n", entry.project));
-    
+
     if !entry.time_range.is_empty() {
         content.push_str(&format!("**Plage horaire**: {}  \n", entry.time_range));
     }
-    
+
     content.push_str(&format!("**Type d'activité**: {}  \n", entry.entry_type));
     content.push_str(&format!("**Description**: {}  \n", entry.description));
     content.push_str(&format!("**Durée**: {} minutes  \n", entry.duration));
-    
+
     if !entry.results.is_empty() {
         content.push_str(&format!("**Résultats**: {}  \n", entry.results));
     }
-    
+
     if !entry.blockers.is_empty() {
         content.push_str(&format!("**Blocages**: {}  \n", entry.blockers));
     }
-    
+
     // Générer les liens Jira
     let mut jira_markdown_links = Vec::new();
     if !entry.jira_tickets.is_empty() {
-        let base_url = std::env::var("JIRA_BASE_URL").unwrap_or_else(|_| "https://votre-instance.atlassian.net".to_string());
+        let base_url = std::env::var("JIRA_BASE_URL")
+            .unwrap_or_else(|_| "https://votre-instance.atlassian.net".to_string());
         for ticket in &entry.jira_tickets {
             let display_text = if let Some(summary) = &ticket.summary {
                 format!("{} - {}", ticket.key, summary)
             } else {
                 ticket.key.clone()
             };
-            jira_markdown_links.push(format!("[{}]({}/browse/{})", display_text, base_url, ticket.key));
+            jira_markdown_links.push(format!(
+                "[{}]({}/browse/{})",
+                display_text, base_url, ticket.key
+            ));
         }
     }
 
     // Générer les liens normaux
     let mut regular_markdown_links = Vec::new();
     if !entry.links.is_empty() {
-        for link in entry.links.iter().filter(|link| !link.text.is_empty() && !link.url.is_empty()) {
+        for link in entry
+            .links
+            .iter()
+            .filter(|link| !link.text.is_empty() && !link.url.is_empty())
+        {
             regular_markdown_links.push(format!("[{}]({})", link.text, link.url));
         }
     }
@@ -333,36 +396,45 @@ pub fn generate_markdown_entry(entry: &ParsedJournalEntry) -> String {    let ti
     let mut all_markdown_links = Vec::new();
     all_markdown_links.extend(jira_markdown_links);
     all_markdown_links.extend(regular_markdown_links);
-    
+
     if !all_markdown_links.is_empty() {
         content.push_str(&format!("**Liens**: {}  \n", all_markdown_links.join(", ")));
     }
-    
+
     let tags_str = if entry.tags.is_empty() {
         "Aucun".to_string()
     } else {
-        entry.tags.iter().map(|tag| format!("#{}", tag)).collect::<Vec<_>>().join(" ")
+        entry
+            .tags
+            .iter()
+            .map(|tag| format!("#{}", tag))
+            .collect::<Vec<_>>()
+            .join(" ")
     };
     content.push_str(&format!("**Tags**: {}  \n", tags_str));
-    
+
     if !entry.reflections.is_empty() {
         content.push_str(&format!("**Réflexions**: {}  \n", entry.reflections));
     }
-    
+
     content
 }
 
-pub fn update_journal_entry(date: &str, entry_index: usize, updated_entry: &ParsedJournalEntry) -> Result<bool> {
+pub fn update_journal_entry(
+    date: &str,
+    entry_index: usize,
+    updated_entry: &ParsedJournalEntry,
+) -> Result<bool> {
     let journal_dir = get_journal_dir()?;
-    let file_path = journal_dir.join(format!("{}.md", date));
-    
+    let file_path = build_journal_file_path(&journal_dir, date)?;
+
     if !file_path.exists() {
         return Ok(false);
     }
-    
+
     let content = fs::read_to_string(&file_path)?;
     let mut entries = parse_journal_entries(&content);
-    
+
     if entry_index < entries.len() {
         // Garder le timestamp original mais mettre à jour le reste
         entries[entry_index] = ParsedJournalEntry {
@@ -371,11 +443,12 @@ pub fn update_journal_entry(date: &str, entry_index: usize, updated_entry: &Pars
         };
 
         // Régénérer le contenu complet
-        let new_content = entries.iter()
+        let new_content = entries
+            .iter()
             .map(|entry| generate_markdown_entry(entry))
             .collect::<Vec<_>>()
             .join("\n\n");
-            
+
         fs::write(&file_path, new_content)?;
         Ok(true)
     } else {
@@ -385,28 +458,29 @@ pub fn update_journal_entry(date: &str, entry_index: usize, updated_entry: &Pars
 
 pub fn delete_journal_entry(date: &str, entry_index: usize) -> Result<bool> {
     let journal_dir = get_journal_dir()?;
-    let file_path = journal_dir.join(format!("{}.md", date));
-    
+    let file_path = build_journal_file_path(&journal_dir, date)?;
+
     if !file_path.exists() {
         return Ok(false);
     }
-    
+
     let content = fs::read_to_string(&file_path)?;
     let mut entries = parse_journal_entries(&content);
-    
+
     if entry_index < entries.len() {
         entries.remove(entry_index);
-        
+
         // Régénérer le contenu complet
         let new_content = if entries.is_empty() {
             String::new()
         } else {
-            entries.iter()
+            entries
+                .iter()
                 .map(|entry| generate_markdown_entry(entry))
                 .collect::<Vec<_>>()
                 .join("\n\n")
         };
-            
+
         fs::write(&file_path, new_content)?;
         Ok(true)
     } else {
@@ -417,7 +491,7 @@ pub fn delete_journal_entry(date: &str, entry_index: usize) -> Result<bool> {
 fn format_entry_as_markdown(entry: &JournalEntry) -> String {
     let now = chrono::Utc::now();
     let timestamp = now.format("%d/%m/%Y %H:%M").to_string();
-    
+
     let parsed_entry = ParsedJournalEntry {
         timestamp,
         project: entry.project.clone(),
@@ -432,6 +506,57 @@ fn format_entry_as_markdown(entry: &JournalEntry) -> String {
         reflections: entry.reflections.clone(),
         jira_tickets: entry.jira_tickets.clone(),
     };
-    
+
     generate_markdown_entry(&parsed_entry)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_journal_file_path, collect_journal_dates_in_dir};
+    use std::fs;
+
+    fn make_temp_dir() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("dev-journal-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn builds_nested_path_from_date() {
+        let root = std::path::Path::new("/tmp/devjournal");
+        let path = build_journal_file_path(root, "2026-04-06").unwrap();
+
+        assert_eq!(path, root.join("2026").join("04").join("2026-04-06.md"));
+    }
+
+    #[test]
+    fn rejects_invalid_date_format_for_path_building() {
+        let root = std::path::Path::new("/tmp/devjournal");
+
+        assert!(build_journal_file_path(root, "2026-4-6").is_err());
+        assert!(build_journal_file_path(root, "06-04-2026").is_err());
+    }
+
+    #[test]
+    fn collects_dates_recursively_from_year_month_tree() {
+        let root = make_temp_dir();
+        let april_dir = root.join("2026").join("04");
+        let march_dir = root.join("2025").join("03");
+        fs::create_dir_all(&april_dir).unwrap();
+        fs::create_dir_all(&march_dir).unwrap();
+        fs::write(april_dir.join("2026-04-06.md"), "entry").unwrap();
+        fs::write(march_dir.join("2025-03-31.md"), "entry").unwrap();
+        fs::write(root.join("ignore.txt"), "ignore").unwrap();
+
+        let mut dates = Vec::new();
+        collect_journal_dates_in_dir(&root, &mut dates).unwrap();
+        dates.sort();
+
+        assert_eq!(
+            dates,
+            vec!["2025-03-31".to_string(), "2026-04-06".to_string()]
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
 }
