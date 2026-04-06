@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { calculateDurationFromTimeRange, formatTimeRangeInput } from '../utils/timeRange';
 
 interface JiraTicketRef {
   key: string;
@@ -32,6 +33,20 @@ interface ParsedJournalEntry {
   links: Link[];
   reflections: string;
   jira_tickets: JiraTicketRef[];
+}
+
+function applyTimeRangeWithPrefill(currentEntry: ParsedJournalEntry, nextTimeRange: string): ParsedJournalEntry {
+  const calculatedDuration = calculateDurationFromTimeRange(nextTimeRange);
+  const currentCalculatedDuration = calculateDurationFromTimeRange(currentEntry.time_range);
+  const shouldPrefillDuration =
+    calculatedDuration !== null &&
+    (currentEntry.duration.trim() === '' || currentEntry.duration === currentCalculatedDuration);
+
+  return {
+    ...currentEntry,
+    time_range: nextTimeRange,
+    duration: shouldPrefillDuration ? calculatedDuration : currentEntry.duration,
+  };
 }
 
 interface JournalEntriesListProps {
@@ -162,32 +177,14 @@ export default function JournalEntriesList({
   };
 
   const handleTimeRangeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-    
-    // Format as HH:MM-HH:MM
-    if (value.length <= 4) {
-      // First time only: HH:MM
-      if (value.length >= 3) {
-        value = value.slice(0, 2) + ':' + value.slice(2);
+    const value = formatTimeRangeInput(e.target.value);
+    setEditForm((currentEntry) => {
+      if (!currentEntry) {
+        return currentEntry;
       }
-    } else {
-      // Both times: HH:MM-HH:MM
-      const firstTime = value.slice(0, 4);
-      const secondTime = value.slice(4, 8);
-      
-      let formatted = firstTime.slice(0, 2) + ':' + firstTime.slice(2);
-      if (secondTime.length > 0) {
-        formatted += '-';
-        if (secondTime.length >= 3) {
-          formatted += secondTime.slice(0, 2) + ':' + secondTime.slice(2);
-        } else {
-          formatted += secondTime;
-        }
-      }
-      value = formatted;
-    }
-    
-    handleFormChange('time_range', value);
+
+      return applyTimeRangeWithPrefill(currentEntry, value);
+    });
   };
 
   const formatDuration = (duration: string) => {

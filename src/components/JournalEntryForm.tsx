@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { calculateDurationFromTimeRange, formatTimeRangeInput } from '../utils/timeRange';
 
 interface Link {
   text: string;
@@ -32,6 +33,20 @@ interface JournalEntry {
   tags: string[];
   reflections: string;
   jira_tickets: JiraTicketRef[];
+}
+
+function applyTimeRangeWithPrefill(currentEntry: JournalEntry, nextTimeRange: string): JournalEntry {
+  const calculatedDuration = calculateDurationFromTimeRange(nextTimeRange);
+  const currentCalculatedDuration = calculateDurationFromTimeRange(currentEntry.time_range);
+  const shouldPrefillDuration =
+    calculatedDuration !== null &&
+    (currentEntry.duration.trim() === '' || currentEntry.duration === currentCalculatedDuration);
+
+  return {
+    ...currentEntry,
+    time_range: nextTimeRange,
+    duration: shouldPrefillDuration ? calculatedDuration : currentEntry.duration,
+  };
 }
 
 interface JournalEntryFormProps {
@@ -74,32 +89,8 @@ export default function JournalEntryForm({
   };
 
   const handleTimeRangeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-    
-    // Format as HH:MM-HH:MM
-    if (value.length <= 4) {
-      // First time only: HH:MM
-      if (value.length >= 3) {
-        value = value.slice(0, 2) + ':' + value.slice(2);
-      }
-    } else {
-      // Both times: HH:MM-HH:MM
-      const firstTime = value.slice(0, 4);
-      const secondTime = value.slice(4, 8);
-      
-      let formatted = firstTime.slice(0, 2) + ':' + firstTime.slice(2);
-      if (secondTime.length > 0) {
-        formatted += '-';
-        if (secondTime.length >= 3) {
-          formatted += secondTime.slice(0, 2) + ':' + secondTime.slice(2);
-        } else {
-          formatted += secondTime;
-        }
-      }
-      value = formatted;
-    }
-    
-    setEntry({ ...entry, time_range: value });
+    const value = formatTimeRangeInput(e.target.value);
+    setEntry((currentEntry) => applyTimeRangeWithPrefill(currentEntry, value));
   };
 
   const handleLinkChange = (index: number, field: keyof Link, value: string) => {
