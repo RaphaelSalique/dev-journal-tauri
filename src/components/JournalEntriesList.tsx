@@ -39,6 +39,7 @@ interface JournalEntriesListProps {
   onRefresh: () => void;
   projects: Array<{id: number, name: string}>;
   tags: Array<{id: number, name: string, color?: string}>;
+  activityTypes: Array<{id: number, name: string, color?: string, active?: boolean}>;
   availableJiraTickets: Array<{key: string, fields: {summary: string}}>;
 }
 
@@ -47,6 +48,7 @@ export default function JournalEntriesList({
   onRefresh, 
   projects, 
   tags: _tags, 
+  activityTypes,
   availableJiraTickets: _availableJiraTickets 
 }: JournalEntriesListProps) {
   const [entries, setEntries] = useState<ParsedJournalEntry[]>([]);
@@ -225,6 +227,15 @@ export default function JournalEntriesList({
     setEditForm({ ...editForm, jira_tickets: newJiraTickets });
   };
 
+  const activityTypeOptions = activityTypes
+    .filter((activityType) => activityType.active !== false)
+    .map((activityType) => activityType.name);
+
+  const selectedEditActivityType = editForm?.entry_type;
+  const editActivityTypeOptions = selectedEditActivityType && !activityTypeOptions.includes(selectedEditActivityType)
+    ? [...activityTypeOptions, selectedEditActivityType].sort((a, b) => a.localeCompare(b))
+    : activityTypeOptions.slice().sort((a, b) => a.localeCompare(b));
+
   if (loading) {
     return <div className="loading">Chargement des entrées...</div>;
   }
@@ -264,13 +275,11 @@ export default function JournalEntriesList({
                         value={editForm?.entry_type || ''}
                         onChange={(e) => handleFormChange('entry_type', e.target.value)}
                       >
-                        <option value="développement">Développement</option>
-                        <option value="revue de code">Revue de code</option>
-                        <option value="réunion">Réunion</option>
-                        <option value="debug">Debug</option>
-                        <option value="documentation">Documentation</option>
-                        <option value="formation">Formation</option>
-                        <option value="veille technologique">Veille technologique</option>
+                        {editActivityTypeOptions.map((activityTypeName) => (
+                          <option key={activityTypeName} value={activityTypeName}>
+                            {activityTypeName}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>

@@ -39,6 +39,7 @@ interface JournalEntryFormProps {
   initialData?: Partial<JournalEntry>;
   projects?: Array<{id: number, name: string}>;
   tags?: Array<{id: number, name: string, color?: string}>;
+  activityTypes?: Array<{id: number, name: string, color?: string, active?: boolean}>;
   availableJiraTickets?: Array<{key: string, fields: {summary: string}}>;
 }
 
@@ -47,6 +48,7 @@ export default function JournalEntryForm({
   initialData = {}, 
   projects = [], 
   tags = [], 
+  activityTypes = [],
   availableJiraTickets = [] 
 }: JournalEntryFormProps) {
   const [entry, setEntry] = useState<JournalEntry>({
@@ -168,6 +170,10 @@ export default function JournalEntryForm({
     onSubmit(entry);
   };
 
+  const sortedActivityTypes = activityTypes
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <form onSubmit={handleSubmit}>
       <div>
@@ -220,14 +226,15 @@ export default function JournalEntryForm({
       <div>
         <label>Type d'activité:</label>
         <select name="entry_type" value={entry.entry_type} onChange={handleChange}>
-          <option value="debug">Debug</option>
-          <option value="développement">Développement</option>
-          <option value="documentation">Documentation</option>
-          <option value="formation">Formation</option>
-          <option value="infrastructure">Infrastructure</option>
-          <option value="réunion">Réunion</option>
-          <option value="revue de code">Revue de code</option>
-          <option value="veille technologique">Veille technologique</option>
+          {sortedActivityTypes.length > 0 ? (
+            sortedActivityTypes.map(activityType => (
+              <option key={activityType.id} value={activityType.name}>
+                {activityType.name}
+              </option>
+            ))
+          ) : (
+            <option value="développement">Développement</option>
+          )}
         </select>
       </div>
 

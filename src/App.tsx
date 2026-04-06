@@ -337,9 +337,6 @@ export default function App() {
     }
   };
 
-  void handleDeleteActivityType;
-  void handleToggleActivityTypeStatus;
-
   // Génération de rapport d'activité
   const generateActivityReport = async () => {
     if (!reportStartDate || !reportEndDate) {
@@ -464,6 +461,7 @@ export default function App() {
             onSubmit={handleSubmit}
             projects={projects}
             tags={tags}
+            activityTypes={activityTypes.filter((activityType) => activityType.active)}
             availableJiraTickets={jiraTickets}
           />
 
@@ -473,6 +471,7 @@ export default function App() {
             onRefresh={loadJournalDates}
             projects={projects}
             tags={tags}
+            activityTypes={activityTypes}
             availableJiraTickets={jiraTickets}
           />
 
@@ -664,6 +663,77 @@ export default function App() {
                           style={{ background: tag.active ? '#ffc107' : '#28a745' }}
                         >
                           {tag.active ? 'Désactiver' : 'Activer'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="admin-section">
+            <div className="admin-header">
+              <h3>Types d'activité ({activityTypes.length})</h3>
+              <button 
+                className="btn-create"
+                style={{ background: 'linear-gradient(135deg, #fd7e14 0%, #ffc107 100%)' }}
+                onClick={() => {
+                  setEditingActivityType(null);
+                  setShowActivityTypeModal(true);
+                }}
+              >
+                Nouveau Type d'activité
+              </button>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Description</th>
+                  <th>Couleur</th>
+                  <th>Actif</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activityTypes.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(activityType => (
+                  <tr key={activityType.id}>
+                    <td>{activityType.name}</td>
+                    <td>{activityType.description}</td>
+                    <td>
+                      <span className="color-badge" style={{ backgroundColor: activityType.color }}>
+                        {activityType.color}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={activityType.active ? 'status-active' : 'status-inactive'}>
+                        {activityType.active ? '✅' : '❌'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <button 
+                          className="btn-sm btn-edit"
+                          onClick={() => {
+                            setEditingActivityType(activityType);
+                            setShowActivityTypeModal(true);
+                          }}
+                        >
+                          Éditer
+                        </button>
+                        <button 
+                          className="btn-sm btn-delete"
+                          onClick={() => handleDeleteActivityType(activityType.id)}
+                        >
+                          Supprimer
+                        </button>
+                        <button 
+                          className="btn-sm"
+                          onClick={() => handleToggleActivityTypeStatus(activityType.id)}
+                          style={{ background: activityType.active ? '#ffc107' : '#28a745' }}
+                        >
+                          {activityType.active ? 'Désactiver' : 'Activer'}
                         </button>
                       </div>
                     </td>
