@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import JournalEntryForm from './components/JournalEntryForm';
 import JournalEntriesList from './components/JournalEntriesList';
@@ -14,6 +14,7 @@ interface AdminViewState {
   entityType: AdminEntityType | null;
   mode: AdminMode | null;
   initialData: any | null;
+  returnToSection: AdminEntityType | null;
 }
 
 export default function App() {
@@ -35,7 +36,11 @@ export default function App() {
     entityType: null,
     mode: null,
     initialData: null,
+    returnToSection: null,
   });
+  const projectsSectionRef = useRef<HTMLDivElement>(null);
+  const tagsSectionRef = useRef<HTMLDivElement>(null);
+  const activityTypesSectionRef = useRef<HTMLDivElement>(null);
   
   // États pour les rapports d'activité
   const [activityReport, setActivityReport] = useState<any>(null);
@@ -73,17 +78,38 @@ export default function App() {
       entityType,
       mode,
       initialData,
+      returnToSection: entityType,
     });
   };
 
-  const closeAdminForm = () => {
-    setAdminView({
+  const closeAdminForm = (preserveReturnToSection = false) => {
+    setAdminView((current) => ({
       view: 'list',
       entityType: null,
       mode: null,
       initialData: null,
-    });
+      returnToSection: preserveReturnToSection ? current.returnToSection : null,
+    }));
   };
+
+  useEffect(() => {
+    if (activeTab !== 'admin' || adminView.view !== 'list' || !adminView.returnToSection) {
+      return;
+    }
+
+    const sectionMap = {
+      project: projectsSectionRef,
+      tag: tagsSectionRef,
+      activityType: activityTypesSectionRef,
+    } as const;
+
+    const targetRef = sectionMap[adminView.returnToSection];
+
+    requestAnimationFrame(() => {
+      targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setAdminView((current) => ({ ...current, returnToSection: null }));
+    });
+  }, [activeTab, adminView.view, adminView.returnToSection, projects, tags, activityTypes]);
 
   const loadFormReferenceData = async () => {
     try {
@@ -260,7 +286,7 @@ export default function App() {
         });
       }
       await reloadReferenceData('admin');
-      closeAdminForm();
+      closeAdminForm(true);
     } catch (error) {
       console.error('Erreur lors de la sauvegarde du projet:', error);
       alert('Erreur lors de la sauvegarde du projet');
@@ -306,7 +332,7 @@ export default function App() {
         });
       }
       await reloadReferenceData('admin');
-      closeAdminForm();
+      closeAdminForm(true);
     } catch (error) {
       console.error('Erreur lors de la sauvegarde du tag:', error);
       alert('Erreur lors de la sauvegarde du tag');
@@ -352,7 +378,7 @@ export default function App() {
         });
       }
       await reloadReferenceData('admin');
-      closeAdminForm();
+      closeAdminForm(true);
     } catch (error) {
       console.error("Erreur lors de la sauvegarde du type d'activité:", error);
       alert("Erreur lors de la sauvegarde du type d'activité");
@@ -554,7 +580,7 @@ export default function App() {
           <h2>Administration</h2>
           {adminView.view === 'list' ? (
             <>
-              <div className="admin-section">
+              <div className="admin-section" ref={projectsSectionRef}>
                 <div className="admin-header">
                   <h3>Projets ({projects.length})</h3>
                   <button
@@ -618,7 +644,7 @@ export default function App() {
                 </table>
               </div>
 
-              <div className="admin-section">
+              <div className="admin-section" ref={tagsSectionRef}>
                 <div className="admin-header">
                   <h3>Tags ({tags.length})</h3>
                   <button
@@ -683,7 +709,7 @@ export default function App() {
                 </table>
               </div>
 
-              <div className="admin-section">
+              <div className="admin-section" ref={activityTypesSectionRef}>
                 <div className="admin-header">
                   <h3>Types d'activité ({activityTypes.length})</h3>
                   <button
