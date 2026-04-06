@@ -4,6 +4,7 @@ import JournalEntryForm from './components/JournalEntryForm';
 import JournalEntriesList from './components/JournalEntriesList';
 import ProjectModal from './components/ProjectModal';
 import TagModal from './components/TagModal';
+import ActivityTypeModal from './components/ActivityTypeModal';
 import ThemeToggle from './components/ThemeToggle';
 import "./App.css";
 
@@ -19,12 +20,15 @@ export default function App() {
   // États pour l'administration
   const [projects, setProjects] = useState<any[]>([]);
   const [tags, setTags] = useState<any[]>([]);
+  const [activityTypes, setActivityTypes] = useState<any[]>([]);
   
   // États pour la gestion des modales
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showTagModal, setShowTagModal] = useState(false);
+  const [showActivityTypeModal, setShowActivityTypeModal] = useState(false);
   const [editingProject, setEditingProject] = useState<any>(null);
   const [editingTag, setEditingTag] = useState<any>(null);
+  const [editingActivityType, setEditingActivityType] = useState<any>(null);
   
   // États pour les rapports d'activité
   const [activityReport, setActivityReport] = useState<any>(null);
@@ -44,7 +48,7 @@ export default function App() {
   useEffect(() => {
     loadJournalDates();
     loadSavedJqlQuery();
-    loadProjectsAndTags();
+    loadFormReferenceData();
   }, []);
   
   useEffect(() => {
@@ -56,15 +60,35 @@ export default function App() {
     setIsDarkTheme(prev => !prev);
   };
 
-  const loadProjectsAndTags = async () => {
+  const loadFormReferenceData = async () => {
     try {
-      const loadedProjects = await invoke<any[]>('get_all_projects', { includeInactive: false });
+      const [loadedProjects, loadedTags, loadedActivityTypes] = await Promise.all([
+        invoke<any[]>('get_all_projects', { includeInactive: false }),
+        invoke<any[]>('get_all_tags', { includeInactive: false }),
+        invoke<any[]>('get_all_activity_types', { includeInactive: false }),
+      ]);
+
       setProjects(loadedProjects);
-      
-      const loadedTags = await invoke<any[]>('get_all_tags', { includeInactive: false });
       setTags(loadedTags);
+      setActivityTypes(loadedActivityTypes);
     } catch (error) {
-      console.error('Erreur lors du chargement des projets/tags:', error);
+      console.error('Erreur lors du chargement des données de formulaire:', error);
+    }
+  };
+
+  const loadAdminReferenceData = async () => {
+    try {
+      const [loadedProjects, loadedTags, loadedActivityTypes] = await Promise.all([
+        invoke<any[]>('get_all_projects', { includeInactive: true }),
+        invoke<any[]>('get_all_tags', { includeInactive: true }),
+        invoke<any[]>('get_all_activity_types', { includeInactive: true }),
+      ]);
+
+      setProjects(loadedProjects);
+      setTags(loadedTags);
+      setActivityTypes(loadedActivityTypes);
+    } catch (error) {
+      console.error("Erreur lors du chargement des données d'administration:", error);
     }
   };
 
@@ -163,7 +187,7 @@ export default function App() {
     if (confirm('Êtes-vous sûr de vouloir supprimer ce projet ?')) {
       try {
         await invoke('delete_project', { id });
-        await loadProjectsAndTags();
+        await loadFormReferenceData();
       } catch (error) {
         console.error('Erreur lors de la suppression du projet:', error);
         alert('Erreur lors de la suppression du projet');
@@ -174,7 +198,7 @@ export default function App() {
   const handleToggleProjectStatus = async (id: number) => {
     try {
       await invoke('toggle_project_status', { id });
-      await loadProjectsAndTags();
+      await loadFormReferenceData();
     } catch (error) {
       console.error('Erreur lors du changement de statut du projet:', error);
     }
@@ -196,7 +220,7 @@ export default function App() {
           color: projectData.color
         });
       }
-      await loadProjectsAndTags();
+      await loadFormReferenceData();
       setShowProjectModal(false);
       setEditingProject(null);
     } catch (error) {
@@ -210,7 +234,7 @@ export default function App() {
     if (confirm('Êtes-vous sûr de vouloir supprimer ce tag ?')) {
       try {
         await invoke('delete_tag', { id });
-        await loadProjectsAndTags();
+        await loadFormReferenceData();
       } catch (error) {
         console.error('Erreur lors de la suppression du tag:', error);
         alert('Erreur lors de la suppression du tag');
@@ -221,7 +245,7 @@ export default function App() {
   const handleToggleTagStatus = async (id: number) => {
     try {
       await invoke('toggle_tag_status', { id });
-      await loadProjectsAndTags();
+      await loadFormReferenceData();
     } catch (error) {
       console.error('Erreur lors du changement de statut du tag:', error);
     }
@@ -243,7 +267,7 @@ export default function App() {
           color: tagData.color
         });
       }
-      await loadProjectsAndTags();
+      await loadFormReferenceData();
       setShowTagModal(false);
       setEditingTag(null);
     } catch (error) {
@@ -251,6 +275,71 @@ export default function App() {
       alert('Erreur lors de la sauvegarde du tag');
     }
   };
+
+  // Gestion des types d'activité
+  const handleDeleteActivityType = async (id: number) => {
+    if (confirm("Êtes-vous sûr de vouloir supprimer ce type d'activité ?")) {
+      try {
+        await invoke('delete_activity_type', { id });
+        if (activeTab === 'admin') {
+          await loadAdminReferenceData();
+        } else {
+          await loadFormReferenceData();
+        }
+      } catch (error) {
+        console.error("Erreur lors de la suppression du type d'activité:", error);
+        alert("Erreur lors de la suppression du type d'activité");
+      }
+    }
+  };
+
+  const handleToggleActivityTypeStatus = async (id: number) => {
+    try {
+      await invoke('toggle_activity_type_status', { id });
+      if (activeTab === 'admin') {
+        await loadAdminReferenceData();
+      } else {
+        await loadFormReferenceData();
+      }
+    } catch (error) {
+      console.error("Erreur lors du changement de statut du type d'activité:", error);
+    }
+  };
+
+  const handleSaveActivityType = async (activityTypeData: any) => {
+    try {
+      if (editingActivityType) {
+        await invoke('update_activity_type', {
+          id: editingActivityType.id,
+          name: activityTypeData.name,
+          description: activityTypeData.description,
+          color: activityTypeData.color
+        });
+      } else {
+        await invoke('create_activity_type', {
+          name: activityTypeData.name,
+          description: activityTypeData.description,
+          color: activityTypeData.color
+        });
+      }
+      if (activeTab === 'admin') {
+        await loadAdminReferenceData();
+      } else {
+        await loadFormReferenceData();
+      }
+      setShowActivityTypeModal(false);
+      setEditingActivityType(null);
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde du type d'activité:", error);
+      alert("Erreur lors de la sauvegarde du type d'activité");
+    }
+  };
+
+  const activityTypeCrudHandlers = [handleDeleteActivityType, handleToggleActivityTypeStatus];
+  void activityTypeCrudHandlers;
+
+  const activityTypeNames = activityTypes.map((activityType) => activityType.name);
+  void activityTypeNames;
 
   // Génération de rapport d'activité
   const generateActivityReport = async () => {
@@ -859,6 +948,16 @@ export default function App() {
         }}
         onSave={handleSaveTag}
         tag={editingTag}
+      />
+
+      <ActivityTypeModal
+        show={showActivityTypeModal}
+        onClose={() => {
+          setShowActivityTypeModal(false);
+          setEditingActivityType(null);
+        }}
+        onSave={handleSaveActivityType}
+        activityType={editingActivityType}
       />
     </div>
   );
