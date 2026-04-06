@@ -616,17 +616,8 @@ async fn toggle_tag_status(
     }
 }
 
-// === COMMANDES POUR LES TYPES D'ACTIVITÉ ===
-
-#[tauri::command]
-async fn get_all_activity_types(
-    app: tauri::AppHandle,
-    include_inactive: Option<bool>,
-) -> Result<Vec<ActivityType>, String> {
-    use tauri_plugin_store::StoreExt;
-    let store = app.store("activity-types.json").map_err(|e| e.to_string())?;
-
-    let default_activity_types = vec![
+fn default_activity_types_catalog() -> Vec<ActivityType> {
+    vec![
         ActivityType {
             id: Some(1),
             name: "debug".to_string(),
@@ -699,10 +690,25 @@ async fn get_all_activity_types(
             created_at: None,
             updated_at: None,
         },
-    ];
+    ]
+}
+
+// === COMMANDES POUR LES TYPES D'ACTIVITÉ ===
+
+#[tauri::command]
+async fn get_all_activity_types(
+    app: tauri::AppHandle,
+    include_inactive: Option<bool>,
+) -> Result<Vec<ActivityType>, String> {
+    use tauri_plugin_store::StoreExt;
+    let store = app.store("activity-types.json").map_err(|e| e.to_string())?;
+    let default_activity_types = default_activity_types_catalog();
 
     let mut activity_types: Vec<ActivityType> = match store.get("activity_types") {
-        Some(value) => serde_json::from_value(value.clone()).unwrap_or_else(|_| default_activity_types.clone()),
+        Some(value) => match serde_json::from_value(value.clone()) {
+            Ok(activity_types) => activity_types,
+            Err(_) => default_activity_types.clone(),
+        },
         None => {
             store.set("activity_types", serde_json::to_value(&default_activity_types).map_err(|e| e.to_string())?);
             store.save().map_err(|e| e.to_string())?;
@@ -726,11 +732,27 @@ async fn create_activity_type(
 ) -> Result<ActivityType, String> {
     use tauri_plugin_store::StoreExt;
     let store = app.store("activity-types.json").map_err(|e| e.to_string())?;
+    let default_activity_types = default_activity_types_catalog();
 
     let mut activity_types: Vec<ActivityType> = match store.get("activity_types") {
-        Some(value) => serde_json::from_value(value.clone()).unwrap_or_default(),
-        None => Vec::new(),
+        Some(value) => match serde_json::from_value(value.clone()) {
+            Ok(activity_types) => activity_types,
+            Err(_) => {
+                store.set("activity_types", serde_json::to_value(&default_activity_types).map_err(|e| e.to_string())?);
+                store.save().map_err(|e| e.to_string())?;
+                default_activity_types.clone()
+            }
+        },
+        None => {
+            store.set("activity_types", serde_json::to_value(&default_activity_types).map_err(|e| e.to_string())?);
+            store.save().map_err(|e| e.to_string())?;
+            default_activity_types.clone()
+        }
     };
+
+    if activity_types.iter().any(|activity_type| activity_type.name == name) {
+        return Err("Un type d'activité avec ce nom existe déjà".to_string());
+    }
 
     let next_id = activity_types.iter().map(|activity_type| activity_type.id.unwrap_or(0)).max().unwrap_or(0) + 1;
 
@@ -761,11 +783,27 @@ async fn update_activity_type(
 ) -> Result<(), String> {
     use tauri_plugin_store::StoreExt;
     let store = app.store("activity-types.json").map_err(|e| e.to_string())?;
+    let default_activity_types = default_activity_types_catalog();
 
     let mut activity_types: Vec<ActivityType> = match store.get("activity_types") {
-        Some(value) => serde_json::from_value(value.clone()).unwrap_or_default(),
-        None => Vec::new(),
+        Some(value) => match serde_json::from_value(value.clone()) {
+            Ok(activity_types) => activity_types,
+            Err(_) => {
+                store.set("activity_types", serde_json::to_value(&default_activity_types).map_err(|e| e.to_string())?);
+                store.save().map_err(|e| e.to_string())?;
+                default_activity_types.clone()
+            }
+        },
+        None => {
+            store.set("activity_types", serde_json::to_value(&default_activity_types).map_err(|e| e.to_string())?);
+            store.save().map_err(|e| e.to_string())?;
+            default_activity_types.clone()
+        }
     };
+
+    if activity_types.iter().any(|activity_type| activity_type.id != Some(id) && activity_type.name == name) {
+        return Err("Un type d'activité avec ce nom existe déjà".to_string());
+    }
 
     if let Some(activity_type) = activity_types.iter_mut().find(|activity_type| activity_type.id == Some(id)) {
         activity_type.name = name;
@@ -791,10 +829,22 @@ async fn delete_activity_type(
 ) -> Result<(), String> {
     use tauri_plugin_store::StoreExt;
     let store = app.store("activity-types.json").map_err(|e| e.to_string())?;
+    let default_activity_types = default_activity_types_catalog();
 
     let mut activity_types: Vec<ActivityType> = match store.get("activity_types") {
-        Some(value) => serde_json::from_value(value.clone()).unwrap_or_default(),
-        None => Vec::new(),
+        Some(value) => match serde_json::from_value(value.clone()) {
+            Ok(activity_types) => activity_types,
+            Err(_) => {
+                store.set("activity_types", serde_json::to_value(&default_activity_types).map_err(|e| e.to_string())?);
+                store.save().map_err(|e| e.to_string())?;
+                default_activity_types.clone()
+            }
+        },
+        None => {
+            store.set("activity_types", serde_json::to_value(&default_activity_types).map_err(|e| e.to_string())?);
+            store.save().map_err(|e| e.to_string())?;
+            default_activity_types.clone()
+        }
     };
 
     let initial_len = activity_types.len();
@@ -816,10 +866,22 @@ async fn toggle_activity_type_status(
 ) -> Result<(), String> {
     use tauri_plugin_store::StoreExt;
     let store = app.store("activity-types.json").map_err(|e| e.to_string())?;
+    let default_activity_types = default_activity_types_catalog();
 
     let mut activity_types: Vec<ActivityType> = match store.get("activity_types") {
-        Some(value) => serde_json::from_value(value.clone()).unwrap_or_default(),
-        None => Vec::new(),
+        Some(value) => match serde_json::from_value(value.clone()) {
+            Ok(activity_types) => activity_types,
+            Err(_) => {
+                store.set("activity_types", serde_json::to_value(&default_activity_types).map_err(|e| e.to_string())?);
+                store.save().map_err(|e| e.to_string())?;
+                default_activity_types.clone()
+            }
+        },
+        None => {
+            store.set("activity_types", serde_json::to_value(&default_activity_types).map_err(|e| e.to_string())?);
+            store.save().map_err(|e| e.to_string())?;
+            default_activity_types.clone()
+        }
     };
 
     if let Some(activity_type) = activity_types.iter_mut().find(|activity_type| activity_type.id == Some(id)) {
