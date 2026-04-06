@@ -174,6 +174,24 @@ export default function JournalEntryForm({
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  useEffect(() => {
+    if (initialData.entry_type) {
+      return;
+    }
+
+    if (sortedActivityTypes.length === 0) {
+      if (entry.entry_type !== '') {
+        setEntry((currentEntry) => ({ ...currentEntry, entry_type: '' }));
+      }
+      return;
+    }
+
+    const hasCurrentType = sortedActivityTypes.some((activityType) => activityType.name === entry.entry_type);
+    if (!hasCurrentType) {
+      setEntry((currentEntry) => ({ ...currentEntry, entry_type: sortedActivityTypes[0].name }));
+    }
+  }, [activityTypes, initialData.entry_type, entry.entry_type, sortedActivityTypes]);
+
   return (
     <form onSubmit={handleSubmit}>
       <div>
@@ -225,7 +243,13 @@ export default function JournalEntryForm({
 
       <div>
         <label>Type d'activité:</label>
-        <select name="entry_type" value={entry.entry_type} onChange={handleChange}>
+        <select
+          name="entry_type"
+          value={entry.entry_type}
+          onChange={handleChange}
+          disabled={sortedActivityTypes.length === 0}
+          required
+        >
           {sortedActivityTypes.length > 0 ? (
             sortedActivityTypes.map(activityType => (
               <option key={activityType.id} value={activityType.name}>
@@ -233,7 +257,7 @@ export default function JournalEntryForm({
               </option>
             ))
           ) : (
-            <option value="développement">Développement</option>
+            <option value="">Aucun type d'activité actif disponible</option>
           )}
         </select>
       </div>
