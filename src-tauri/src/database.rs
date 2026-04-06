@@ -23,6 +23,17 @@ pub struct Tag {
     pub updated_at: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ActivityType {
+    pub id: Option<i64>,
+    pub name: String,
+    pub description: Option<String>,
+    pub color: String,
+    pub active: bool,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserPreference {
     pub id: Option<i64>,

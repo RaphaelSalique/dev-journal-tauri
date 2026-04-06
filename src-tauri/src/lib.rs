@@ -5,7 +5,7 @@ mod file_manager;
 use std::sync::Mutex;
 use tauri::{Manager, State};
 
-use crate::database::{Project, Tag};
+use crate::database::{ActivityType, Project, Tag};
 use crate::jira::{JiraClient, JiraTicket};
 use crate::file_manager::{JournalEntry, ParsedJournalEntry, save_journal_entry, load_journal_file, get_available_journal_dates, parse_journal_entries, update_journal_entry, delete_journal_entry};
 use std::collections::HashMap;
@@ -616,6 +616,225 @@ async fn toggle_tag_status(
     }
 }
 
+// === COMMANDES POUR LES TYPES D'ACTIVITÉ ===
+
+#[tauri::command]
+async fn get_all_activity_types(
+    app: tauri::AppHandle,
+    include_inactive: Option<bool>,
+) -> Result<Vec<ActivityType>, String> {
+    use tauri_plugin_store::StoreExt;
+    let store = app.store("activity-types.json").map_err(|e| e.to_string())?;
+
+    let default_activity_types = vec![
+        ActivityType {
+            id: Some(1),
+            name: "debug".to_string(),
+            description: Some("Investigation et correction de probleme".to_string()),
+            color: "#dc3545".to_string(),
+            active: true,
+            created_at: None,
+            updated_at: None,
+        },
+        ActivityType {
+            id: Some(2),
+            name: "développement".to_string(),
+            description: Some("Implementation de fonctionnalites".to_string()),
+            color: "#007bff".to_string(),
+            active: true,
+            created_at: None,
+            updated_at: None,
+        },
+        ActivityType {
+            id: Some(3),
+            name: "documentation".to_string(),
+            description: Some("Redaction et mise a jour de documentation".to_string()),
+            color: "#17a2b8".to_string(),
+            active: true,
+            created_at: None,
+            updated_at: None,
+        },
+        ActivityType {
+            id: Some(4),
+            name: "formation".to_string(),
+            description: Some("Apprentissage et montee en competence".to_string()),
+            color: "#6f42c1".to_string(),
+            active: true,
+            created_at: None,
+            updated_at: None,
+        },
+        ActivityType {
+            id: Some(5),
+            name: "infrastructure".to_string(),
+            description: Some("Outillage, CI, environnements et operations".to_string()),
+            color: "#6c757d".to_string(),
+            active: true,
+            created_at: None,
+            updated_at: None,
+        },
+        ActivityType {
+            id: Some(6),
+            name: "réunion".to_string(),
+            description: Some("Synchronisation, atelier ou point d'equipe".to_string()),
+            color: "#ffc107".to_string(),
+            active: true,
+            created_at: None,
+            updated_at: None,
+        },
+        ActivityType {
+            id: Some(7),
+            name: "revue de code".to_string(),
+            description: Some("Lecture et validation de modifications".to_string()),
+            color: "#28a745".to_string(),
+            active: true,
+            created_at: None,
+            updated_at: None,
+        },
+        ActivityType {
+            id: Some(8),
+            name: "veille technologique".to_string(),
+            description: Some("Exploration et suivi technique".to_string()),
+            color: "#fd7e14".to_string(),
+            active: true,
+            created_at: None,
+            updated_at: None,
+        },
+    ];
+
+    let mut activity_types: Vec<ActivityType> = match store.get("activity_types") {
+        Some(value) => serde_json::from_value(value.clone()).unwrap_or_else(|_| default_activity_types.clone()),
+        None => {
+            store.set("activity_types", serde_json::to_value(&default_activity_types).map_err(|e| e.to_string())?);
+            store.save().map_err(|e| e.to_string())?;
+            default_activity_types.clone()
+        }
+    };
+
+    if !include_inactive.unwrap_or(false) {
+        activity_types.retain(|activity_type| activity_type.active);
+    }
+
+    Ok(activity_types)
+}
+
+#[tauri::command]
+async fn create_activity_type(
+    app: tauri::AppHandle,
+    name: String,
+    description: Option<String>,
+    color: Option<String>,
+) -> Result<ActivityType, String> {
+    use tauri_plugin_store::StoreExt;
+    let store = app.store("activity-types.json").map_err(|e| e.to_string())?;
+
+    let mut activity_types: Vec<ActivityType> = match store.get("activity_types") {
+        Some(value) => serde_json::from_value(value.clone()).unwrap_or_default(),
+        None => Vec::new(),
+    };
+
+    let next_id = activity_types.iter().map(|activity_type| activity_type.id.unwrap_or(0)).max().unwrap_or(0) + 1;
+
+    let new_activity_type = ActivityType {
+        id: Some(next_id),
+        name,
+        description,
+        color: color.unwrap_or("#6c757d".to_string()),
+        active: true,
+        created_at: None,
+        updated_at: None,
+    };
+
+    activity_types.push(new_activity_type.clone());
+    store.set("activity_types", serde_json::to_value(&activity_types).map_err(|e| e.to_string())?);
+    store.save().map_err(|e| e.to_string())?;
+
+    Ok(new_activity_type)
+}
+
+#[tauri::command]
+async fn update_activity_type(
+    app: tauri::AppHandle,
+    id: i64,
+    name: String,
+    description: Option<String>,
+    color: Option<String>,
+) -> Result<(), String> {
+    use tauri_plugin_store::StoreExt;
+    let store = app.store("activity-types.json").map_err(|e| e.to_string())?;
+
+    let mut activity_types: Vec<ActivityType> = match store.get("activity_types") {
+        Some(value) => serde_json::from_value(value.clone()).unwrap_or_default(),
+        None => Vec::new(),
+    };
+
+    if let Some(activity_type) = activity_types.iter_mut().find(|activity_type| activity_type.id == Some(id)) {
+        activity_type.name = name;
+        activity_type.description = description;
+        if let Some(color) = color {
+            activity_type.color = color;
+        }
+        activity_type.updated_at = Some((std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64).to_string());
+
+        store.set("activity_types", serde_json::to_value(&activity_types).map_err(|e| e.to_string())?);
+        store.save().map_err(|e| e.to_string())?;
+
+        Ok(())
+    } else {
+        Err("Type d'activité non trouvé".to_string())
+    }
+}
+
+#[tauri::command]
+async fn delete_activity_type(
+    app: tauri::AppHandle,
+    id: i64
+) -> Result<(), String> {
+    use tauri_plugin_store::StoreExt;
+    let store = app.store("activity-types.json").map_err(|e| e.to_string())?;
+
+    let mut activity_types: Vec<ActivityType> = match store.get("activity_types") {
+        Some(value) => serde_json::from_value(value.clone()).unwrap_or_default(),
+        None => Vec::new(),
+    };
+
+    let initial_len = activity_types.len();
+    activity_types.retain(|activity_type| activity_type.id != Some(id));
+
+    if activity_types.len() < initial_len {
+        store.set("activity_types", serde_json::to_value(&activity_types).map_err(|e| e.to_string())?);
+        store.save().map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("Type d'activité non trouvé".to_string())
+    }
+}
+
+#[tauri::command]
+async fn toggle_activity_type_status(
+    app: tauri::AppHandle,
+    id: i64
+) -> Result<(), String> {
+    use tauri_plugin_store::StoreExt;
+    let store = app.store("activity-types.json").map_err(|e| e.to_string())?;
+
+    let mut activity_types: Vec<ActivityType> = match store.get("activity_types") {
+        Some(value) => serde_json::from_value(value.clone()).unwrap_or_default(),
+        None => Vec::new(),
+    };
+
+    if let Some(activity_type) = activity_types.iter_mut().find(|activity_type| activity_type.id == Some(id)) {
+        activity_type.active = !activity_type.active;
+        activity_type.updated_at = Some((std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64).to_string());
+
+        store.set("activity_types", serde_json::to_value(&activity_types).map_err(|e| e.to_string())?);
+        store.save().map_err(|e| e.to_string())?;
+
+        Ok(())
+    } else {
+        Err("Type d'activité non trouvé".to_string())
+    }
+}
+
 // === COMMANDES POUR LES RAPPORTS D'ACTIVITÉ ===
 
 #[derive(Debug, serde::Serialize)]
@@ -1127,6 +1346,11 @@ pub fn run() {
             update_tag,
             delete_tag,
             toggle_tag_status,
+            get_all_activity_types,
+            create_activity_type,
+            update_activity_type,
+            delete_activity_type,
+            toggle_activity_type_status,
             get_preference,
             set_preference,
             generate_activity_report,
