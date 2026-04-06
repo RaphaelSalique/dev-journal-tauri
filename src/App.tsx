@@ -2,11 +2,19 @@ import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import JournalEntryForm from './components/JournalEntryForm';
 import JournalEntriesList from './components/JournalEntriesList';
-import ProjectModal from './components/ProjectModal';
-import TagModal from './components/TagModal';
-import ActivityTypeModal from './components/ActivityTypeModal';
+import AdminEntityForm from './components/AdminEntityForm';
 import ThemeToggle from './components/ThemeToggle';
 import "./App.css";
+
+type AdminEntityType = 'project' | 'tag' | 'activityType';
+type AdminMode = 'create' | 'edit';
+
+interface AdminViewState {
+  view: 'list' | 'form';
+  entityType: AdminEntityType | null;
+  mode: AdminMode | null;
+  initialData: any | null;
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('journal');
@@ -22,13 +30,12 @@ export default function App() {
   const [tags, setTags] = useState<any[]>([]);
   const [activityTypes, setActivityTypes] = useState<any[]>([]);
   
-  // États pour la gestion des modales
-  const [showProjectModal, setShowProjectModal] = useState(false);
-  const [showTagModal, setShowTagModal] = useState(false);
-  const [showActivityTypeModal, setShowActivityTypeModal] = useState(false);
-  const [editingProject, setEditingProject] = useState<any>(null);
-  const [editingTag, setEditingTag] = useState<any>(null);
-  const [editingActivityType, setEditingActivityType] = useState<any>(null);
+  const [adminView, setAdminView] = useState<AdminViewState>({
+    view: 'list',
+    entityType: null,
+    mode: null,
+    initialData: null,
+  });
   
   // États pour les rapports d'activité
   const [activityReport, setActivityReport] = useState<any>(null);
@@ -58,6 +65,24 @@ export default function App() {
   
   const toggleTheme = () => {
     setIsDarkTheme(prev => !prev);
+  };
+
+  const openAdminForm = (entityType: AdminEntityType, mode: AdminMode, initialData: any = null) => {
+    setAdminView({
+      view: 'form',
+      entityType,
+      mode,
+      initialData,
+    });
+  };
+
+  const closeAdminForm = () => {
+    setAdminView({
+      view: 'list',
+      entityType: null,
+      mode: null,
+      initialData: null,
+    });
   };
 
   const loadFormReferenceData = async () => {
@@ -220,9 +245,9 @@ export default function App() {
 
   const handleSaveProject = async (projectData: any) => {
     try {
-      if (editingProject) {
+      if (adminView.entityType === 'project' && adminView.mode === 'edit' && adminView.initialData) {
         await invoke('update_project', {
-          id: editingProject.id,
+          id: adminView.initialData.id,
           name: projectData.name,
           description: projectData.description,
           color: projectData.color
@@ -234,9 +259,8 @@ export default function App() {
           color: projectData.color
         });
       }
-      await reloadReferenceData();
-      setShowProjectModal(false);
-      setEditingProject(null);
+      await reloadReferenceData('admin');
+      closeAdminForm();
     } catch (error) {
       console.error('Erreur lors de la sauvegarde du projet:', error);
       alert('Erreur lors de la sauvegarde du projet');
@@ -267,9 +291,9 @@ export default function App() {
 
   const handleSaveTag = async (tagData: any) => {
     try {
-      if (editingTag) {
+      if (adminView.entityType === 'tag' && adminView.mode === 'edit' && adminView.initialData) {
         await invoke('update_tag', {
-          id: editingTag.id,
+          id: adminView.initialData.id,
           name: tagData.name,
           description: tagData.description,
           color: tagData.color
@@ -281,9 +305,8 @@ export default function App() {
           color: tagData.color
         });
       }
-      await reloadReferenceData();
-      setShowTagModal(false);
-      setEditingTag(null);
+      await reloadReferenceData('admin');
+      closeAdminForm();
     } catch (error) {
       console.error('Erreur lors de la sauvegarde du tag:', error);
       alert('Erreur lors de la sauvegarde du tag');
@@ -314,9 +337,9 @@ export default function App() {
 
   const handleSaveActivityType = async (activityTypeData: any) => {
     try {
-      if (editingActivityType) {
+      if (adminView.entityType === 'activityType' && adminView.mode === 'edit' && adminView.initialData) {
         await invoke('update_activity_type', {
-          id: editingActivityType.id,
+          id: adminView.initialData.id,
           name: activityTypeData.name,
           description: activityTypeData.description,
           color: activityTypeData.color
@@ -328,9 +351,8 @@ export default function App() {
           color: activityTypeData.color
         });
       }
-      await reloadReferenceData();
-      setShowActivityTypeModal(false);
-      setEditingActivityType(null);
+      await reloadReferenceData('admin');
+      closeAdminForm();
     } catch (error) {
       console.error("Erreur lors de la sauvegarde du type d'activité:", error);
       alert("Erreur lors de la sauvegarde du type d'activité");
@@ -530,218 +552,221 @@ export default function App() {
       ) : activeTab === 'admin' ? (
         <div className="tab-content">
           <h2>Administration</h2>
-          
-          <div className="admin-section">
-            <div className="admin-header">
-              <h3>Projets ({projects.length})</h3>
-              <button 
-                className="btn-create"
-                onClick={() => {
-                  setEditingProject(null);
-                  setShowProjectModal(true);
-                }}
-              >
-                Nouveau Projet
-              </button>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Nom</th>
-                  <th>Description</th>
-                  <th>Couleur</th>
-                  <th>Actif</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects.sort(function (a, b) { return a.name.localeCompare(b.name); }).map(project => (
-                  <tr key={project.id}>
-                    <td>{project.name}</td>
-                    <td>{project.description}</td>
-                    <td>
-                      <span className="color-badge" style={{ backgroundColor: project.color }}>
-                        {project.color}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={project.active ? 'status-active' : 'status-inactive'}>
-                        {project.active ? '✅' : '❌'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button 
-                          className="btn-sm btn-edit"
-                          onClick={() => {
-                            setEditingProject(project);
-                            setShowProjectModal(true);
-                          }}
-                        >
-                          Éditer
-                        </button>
-                        <button 
-                          className="btn-sm btn-delete"
-                          onClick={() => handleDeleteProject(project.id)}
-                        >
-                          Supprimer
-                        </button>
-                        <button 
-                          className="btn-sm"
-                          onClick={() => handleToggleProjectStatus(project.id)}
-                          style={{ background: project.active ? '#ffc107' : '#28a745' }}
-                        >
-                          {project.active ? 'Désactiver' : 'Activer'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {adminView.view === 'list' ? (
+            <>
+              <div className="admin-section">
+                <div className="admin-header">
+                  <h3>Projets ({projects.length})</h3>
+                  <button
+                    className="btn-create"
+                    onClick={() => openAdminForm('project', 'create')}
+                  >
+                    Nouveau Projet
+                  </button>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nom</th>
+                      <th>Description</th>
+                      <th>Couleur</th>
+                      <th>Actif</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projects.sort(function (a, b) { return a.name.localeCompare(b.name); }).map(project => (
+                      <tr key={project.id}>
+                        <td>{project.name}</td>
+                        <td>{project.description}</td>
+                        <td>
+                          <span className="color-badge" style={{ backgroundColor: project.color }}>
+                            {project.color}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={project.active ? 'status-active' : 'status-inactive'}>
+                            {project.active ? '✅' : '❌'}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="action-buttons">
+                            <button
+                              className="btn-sm btn-edit"
+                              onClick={() => openAdminForm('project', 'edit', project)}
+                            >
+                              Éditer
+                            </button>
+                            <button
+                              className="btn-sm btn-delete"
+                              onClick={() => handleDeleteProject(project.id)}
+                            >
+                              Supprimer
+                            </button>
+                            <button
+                              className="btn-sm"
+                              onClick={() => handleToggleProjectStatus(project.id)}
+                              style={{ background: project.active ? '#ffc107' : '#28a745' }}
+                            >
+                              {project.active ? 'Désactiver' : 'Activer'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-          <div className="admin-section">
-            <div className="admin-header">
-              <h3>Tags ({tags.length})</h3>
-              <button 
-                className="btn-create" 
-                style={{ background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' }}
-                onClick={() => {
-                  setEditingTag(null);
-                  setShowTagModal(true);
-                }}
-              >
-                Nouveau Tag
-              </button>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Nom</th>
-                  <th>Description</th>
-                  <th>Couleur</th>
-                  <th>Actif</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tags.sort(function (a, b) { return a.name.localeCompare(b.name); }).map(tag => (
-                  <tr key={tag.id}>
-                    <td>{tag.name}</td>
-                    <td>{tag.description}</td>
-                    <td>
-                      <span className="color-badge" style={{ backgroundColor: tag.color }}>
-                        {tag.color}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={tag.active ? 'status-active' : 'status-inactive'}>
-                        {tag.active ? '✅' : '❌'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button 
-                          className="btn-sm btn-edit"
-                          onClick={() => {
-                            setEditingTag(tag);
-                            setShowTagModal(true);
-                          }}
-                        >
-                          Éditer
-                        </button>
-                        <button 
-                          className="btn-sm btn-delete"
-                          onClick={() => handleDeleteTag(tag.id)}
-                        >
-                          Supprimer
-                        </button>
-                        <button 
-                          className="btn-sm"
-                          onClick={() => handleToggleTagStatus(tag.id)}
-                          style={{ background: tag.active ? '#ffc107' : '#28a745' }}
-                        >
-                          {tag.active ? 'Désactiver' : 'Activer'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              <div className="admin-section">
+                <div className="admin-header">
+                  <h3>Tags ({tags.length})</h3>
+                  <button
+                    className="btn-create"
+                    style={{ background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' }}
+                    onClick={() => openAdminForm('tag', 'create')}
+                  >
+                    Nouveau Tag
+                  </button>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nom</th>
+                      <th>Description</th>
+                      <th>Couleur</th>
+                      <th>Actif</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tags.sort(function (a, b) { return a.name.localeCompare(b.name); }).map(tag => (
+                      <tr key={tag.id}>
+                        <td>{tag.name}</td>
+                        <td>{tag.description}</td>
+                        <td>
+                          <span className="color-badge" style={{ backgroundColor: tag.color }}>
+                            {tag.color}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={tag.active ? 'status-active' : 'status-inactive'}>
+                            {tag.active ? '✅' : '❌'}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="action-buttons">
+                            <button
+                              className="btn-sm btn-edit"
+                              onClick={() => openAdminForm('tag', 'edit', tag)}
+                            >
+                              Éditer
+                            </button>
+                            <button
+                              className="btn-sm btn-delete"
+                              onClick={() => handleDeleteTag(tag.id)}
+                            >
+                              Supprimer
+                            </button>
+                            <button
+                              className="btn-sm"
+                              onClick={() => handleToggleTagStatus(tag.id)}
+                              style={{ background: tag.active ? '#ffc107' : '#28a745' }}
+                            >
+                              {tag.active ? 'Désactiver' : 'Activer'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-          <div className="admin-section">
-            <div className="admin-header">
-              <h3>Types d'activité ({activityTypes.length})</h3>
-              <button 
-                className="btn-create"
-                style={{ background: 'linear-gradient(135deg, #fd7e14 0%, #ffc107 100%)' }}
-                onClick={() => {
-                  setEditingActivityType(null);
-                  setShowActivityTypeModal(true);
+              <div className="admin-section">
+                <div className="admin-header">
+                  <h3>Types d'activité ({activityTypes.length})</h3>
+                  <button
+                    className="btn-create"
+                    style={{ background: 'linear-gradient(135deg, #fd7e14 0%, #ffc107 100%)' }}
+                    onClick={() => openAdminForm('activityType', 'create')}
+                  >
+                    Nouveau Type d'activité
+                  </button>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nom</th>
+                      <th>Description</th>
+                      <th>Couleur</th>
+                      <th>Actif</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activityTypes.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(activityType => (
+                      <tr key={activityType.id}>
+                        <td>{activityType.name}</td>
+                        <td>{activityType.description}</td>
+                        <td>
+                          <span className="color-badge" style={{ backgroundColor: activityType.color }}>
+                            {activityType.color}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={activityType.active ? 'status-active' : 'status-inactive'}>
+                            {activityType.active ? '✅' : '❌'}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="action-buttons">
+                            <button
+                              className="btn-sm btn-edit"
+                              onClick={() => openAdminForm('activityType', 'edit', activityType)}
+                            >
+                              Éditer
+                            </button>
+                            <button
+                              className="btn-sm btn-delete"
+                              onClick={() => handleDeleteActivityType(activityType.id)}
+                            >
+                              Supprimer
+                            </button>
+                            <button
+                              className="btn-sm"
+                              onClick={() => handleToggleActivityTypeStatus(activityType.id)}
+                              style={{ background: activityType.active ? '#ffc107' : '#28a745' }}
+                            >
+                              {activityType.active ? 'Désactiver' : 'Activer'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            adminView.entityType && adminView.mode && (
+              <AdminEntityForm
+                entityType={adminView.entityType}
+                mode={adminView.mode}
+                initialData={adminView.initialData}
+                onBack={closeAdminForm}
+                onSave={(data) => {
+                  if (adminView.entityType === 'project') {
+                    return handleSaveProject(data);
+                  }
+                  if (adminView.entityType === 'tag') {
+                    return handleSaveTag(data);
+                  }
+                  return handleSaveActivityType(data);
                 }}
-              >
-                Nouveau Type d'activité
-              </button>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Nom</th>
-                  <th>Description</th>
-                  <th>Couleur</th>
-                  <th>Actif</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activityTypes.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(activityType => (
-                  <tr key={activityType.id}>
-                    <td>{activityType.name}</td>
-                    <td>{activityType.description}</td>
-                    <td>
-                      <span className="color-badge" style={{ backgroundColor: activityType.color }}>
-                        {activityType.color}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={activityType.active ? 'status-active' : 'status-inactive'}>
-                        {activityType.active ? '✅' : '❌'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button 
-                          className="btn-sm btn-edit"
-                          onClick={() => {
-                            setEditingActivityType(activityType);
-                            setShowActivityTypeModal(true);
-                          }}
-                        >
-                          Éditer
-                        </button>
-                        <button 
-                          className="btn-sm btn-delete"
-                          onClick={() => handleDeleteActivityType(activityType.id)}
-                        >
-                          Supprimer
-                        </button>
-                        <button 
-                          className="btn-sm"
-                          onClick={() => handleToggleActivityTypeStatus(activityType.id)}
-                          style={{ background: activityType.active ? '#ffc107' : '#28a745' }}
-                        >
-                          {activityType.active ? 'Désactiver' : 'Activer'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              />
+            )
+          )}
         </div>
       ) : activeTab === 'analytics' ? (
         <div className="tab-content">
@@ -1002,36 +1027,6 @@ export default function App() {
         </div>
       ) : null}
 
-      {/* Modales */}
-      <ProjectModal
-        show={showProjectModal}
-        onClose={() => {
-          setShowProjectModal(false);
-          setEditingProject(null);
-        }}
-        onSave={handleSaveProject}
-        project={editingProject}
-      />
-
-      <TagModal
-        show={showTagModal}
-        onClose={() => {
-          setShowTagModal(false);
-          setEditingTag(null);
-        }}
-        onSave={handleSaveTag}
-        tag={editingTag}
-      />
-
-      <ActivityTypeModal
-        show={showActivityTypeModal}
-        onClose={() => {
-          setShowActivityTypeModal(false);
-          setEditingActivityType(null);
-        }}
-        onSave={handleSaveActivityType}
-        activityType={editingActivityType}
-      />
     </div>
   );
 }
