@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import DatePickerField from './DatePickerField';
 import { calculateDurationFromTimeRange, formatTimeRangeInput } from '../utils/timeRange';
 
 interface Link {
@@ -51,6 +52,7 @@ function applyTimeRangeWithPrefill(currentEntry: JournalEntry, nextTimeRange: st
 
 interface JournalEntryFormProps {
   onSubmit: (entry: JournalEntry) => void;
+  selectedDate?: string;
   initialData?: Partial<JournalEntry>;
   projects?: Array<{id: number, name: string}>;
   tags?: Array<{id: number, name: string, color?: string}>;
@@ -60,6 +62,7 @@ interface JournalEntryFormProps {
 
 export default function JournalEntryForm({ 
   onSubmit, 
+  selectedDate,
   initialData = {}, 
   projects = [], 
   tags = [], 
@@ -67,7 +70,7 @@ export default function JournalEntryForm({
   availableJiraTickets = [] 
 }: JournalEntryFormProps) {
   const [entry, setEntry] = useState<JournalEntry>({
-    date: initialData.date || new Date().toISOString().split('T')[0],
+    date: initialData.date || selectedDate || new Date().toISOString().split('T')[0],
     time_range: initialData.time_range || '',
     project: initialData.project || '',
     entry_type: initialData.entry_type || 'développement',
@@ -166,6 +169,16 @@ export default function JournalEntryForm({
     .sort((a, b) => a.name.localeCompare(b.name));
 
   useEffect(() => {
+    if (initialData.date) {
+      return;
+    }
+
+    if (selectedDate && selectedDate !== entry.date) {
+      setEntry((currentEntry) => ({ ...currentEntry, date: selectedDate }));
+    }
+  }, [initialData.date, selectedDate, entry.date]);
+
+  useEffect(() => {
     if (initialData.entry_type) {
       return;
     }
@@ -186,23 +199,12 @@ export default function JournalEntryForm({
   return (
     <form onSubmit={handleSubmit}>
       <div>
-        <label>Date:</label>
-        <input 
-          type="date" 
+        <DatePickerField
+          label="Date"
           name="date" 
           value={entry.date} 
-          onChange={handleChange}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              (e.target as HTMLInputElement).blur();
-            }
-          }}
-          onBlur={() => {
-            // Le calendrier se ferme automatiquement quand on clique à l'extérieur
-          }}
-          className="date-input"
-          title="Cliquez à l'extérieur ou appuyez sur Échap pour fermer"
-          required 
+          onChange={(nextValue) => setEntry({ ...entry, date: nextValue })}
+          required
         />
       </div>
 

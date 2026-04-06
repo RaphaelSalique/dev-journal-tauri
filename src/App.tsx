@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import JournalEntryForm from './components/JournalEntryForm';
 import JournalEntriesList from './components/JournalEntriesList';
 import AdminEntityForm from './components/AdminEntityForm';
+import DatePickerField from './components/DatePickerField';
 import ThemeToggle from './components/ThemeToggle';
 import "./App.css";
 
@@ -195,9 +196,12 @@ export default function App() {
   };
 
   const handleSubmit = async (entry: any) => {
+    const targetDate = entry.date || currentDate;
+
     try {
-      await invoke('save_journal_entry_cmd', { date: currentDate, entry });
-      const updatedContent = await invoke<string>('load_journal_file_cmd', { date: currentDate });
+      await invoke('save_journal_entry_cmd', { date: targetDate, entry });
+      const updatedContent = await invoke<string>('load_journal_file_cmd', { date: targetDate });
+      setCurrentDate(targetDate);
       setCurrentContent(updatedContent);
       await loadJournalDates();
       // Forcer le refresh de la liste des entrées
@@ -517,26 +521,17 @@ export default function App() {
                   </option>
                 ))}
               </select>
-              <input 
-                type="date" 
+              <DatePickerField
+                label="Sélectionner une date"
                 value={currentDate} 
-                onChange={(e) => loadJournal(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    (e.target as HTMLInputElement).blur();
-                  }
-                }}
-                onBlur={() => {
-                  // Le calendrier se ferme automatiquement quand on clique à l'extérieur
-                }}
-                className="date-input"
-                title="Cliquez à l'extérieur ou appuyez sur Échap pour fermer"
+                onChange={(nextValue) => loadJournal(nextValue)}
               />
             </div>
           </div>
 
           <JournalEntryForm 
             onSubmit={handleSubmit}
+            selectedDate={currentDate}
             projects={projects}
             tags={tags}
             activityTypes={activityTypes.filter((activityType) => activityType.active)}
@@ -902,40 +897,18 @@ export default function App() {
             <h3>Générer un Rapport d'Activité</h3>
             <div className="report-form">
               <div className="form-row">
-                <div className="form-group">
-                  <label>Date de début:</label>
-                  <input
-                    type="date"
+                <div className="form-group report-date-field">
+                  <DatePickerField
+                    label="Date de début"
                     value={reportStartDate}
-                    onChange={(e) => setReportStartDate(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                    onBlur={() => {
-                      // Le calendrier se ferme automatiquement quand on clique à l'extérieur
-                    }}
-                    className="date-input"
-                    title="Cliquez à l'extérieur ou appuyez sur Échap pour fermer"
+                    onChange={(nextValue) => setReportStartDate(nextValue)}
                   />
                 </div>
-                <div className="form-group">
-                  <label>Date de fin:</label>
-                  <input
-                    type="date"
+                <div className="form-group report-date-field">
+                  <DatePickerField
+                    label="Date de fin"
                     value={reportEndDate}
-                    onChange={(e) => setReportEndDate(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                    onBlur={() => {
-                      // Le calendrier se ferme automatiquement quand on clique à l'extérieur
-                    }}
-                    className="date-input"
-                    title="Cliquez à l'extérieur ou appuyez sur Échap pour fermer"
+                    onChange={(nextValue) => setReportEndDate(nextValue)}
                   />
                 </div>
                 <div className="form-group">
