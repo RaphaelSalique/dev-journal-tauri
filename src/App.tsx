@@ -92,6 +92,15 @@ export default function App() {
     }
   };
 
+  const reloadReferenceData = async (tab: string = activeTab) => {
+    if (tab === 'admin') {
+      await loadAdminReferenceData();
+      return;
+    }
+
+    await loadFormReferenceData();
+  };
+
   const loadJournalDates = async () => {
     try {
       const dates = await invoke<string[]>('get_journal_dates');
@@ -170,7 +179,7 @@ export default function App() {
 
   const handleTabChange = async (tab: string) => {
     setActiveTab(tab);
-    
+
     if (tab === 'journal') {
       try {
         const savedQuery = await invoke<string | null>('get_preference', { key: 'jira_jql_query' });
@@ -179,6 +188,11 @@ export default function App() {
       } catch (error) {
         console.error('Erreur lors du rechargement de la requête JQL:', error);
       }
+      await loadFormReferenceData();
+    } else if (tab === 'admin') {
+      await loadAdminReferenceData();
+    } else {
+      await loadFormReferenceData();
     }
   };
 
@@ -187,7 +201,7 @@ export default function App() {
     if (confirm('Êtes-vous sûr de vouloir supprimer ce projet ?')) {
       try {
         await invoke('delete_project', { id });
-        await loadFormReferenceData();
+        await reloadReferenceData();
       } catch (error) {
         console.error('Erreur lors de la suppression du projet:', error);
         alert('Erreur lors de la suppression du projet');
@@ -198,7 +212,7 @@ export default function App() {
   const handleToggleProjectStatus = async (id: number) => {
     try {
       await invoke('toggle_project_status', { id });
-      await loadFormReferenceData();
+      await reloadReferenceData();
     } catch (error) {
       console.error('Erreur lors du changement de statut du projet:', error);
     }
@@ -220,7 +234,7 @@ export default function App() {
           color: projectData.color
         });
       }
-      await loadFormReferenceData();
+      await reloadReferenceData();
       setShowProjectModal(false);
       setEditingProject(null);
     } catch (error) {
@@ -234,7 +248,7 @@ export default function App() {
     if (confirm('Êtes-vous sûr de vouloir supprimer ce tag ?')) {
       try {
         await invoke('delete_tag', { id });
-        await loadFormReferenceData();
+        await reloadReferenceData();
       } catch (error) {
         console.error('Erreur lors de la suppression du tag:', error);
         alert('Erreur lors de la suppression du tag');
@@ -245,7 +259,7 @@ export default function App() {
   const handleToggleTagStatus = async (id: number) => {
     try {
       await invoke('toggle_tag_status', { id });
-      await loadFormReferenceData();
+      await reloadReferenceData();
     } catch (error) {
       console.error('Erreur lors du changement de statut du tag:', error);
     }
@@ -267,7 +281,7 @@ export default function App() {
           color: tagData.color
         });
       }
-      await loadFormReferenceData();
+      await reloadReferenceData();
       setShowTagModal(false);
       setEditingTag(null);
     } catch (error) {
@@ -281,11 +295,7 @@ export default function App() {
     if (confirm("Êtes-vous sûr de vouloir supprimer ce type d'activité ?")) {
       try {
         await invoke('delete_activity_type', { id });
-        if (activeTab === 'admin') {
-          await loadAdminReferenceData();
-        } else {
-          await loadFormReferenceData();
-        }
+        await reloadReferenceData();
       } catch (error) {
         console.error("Erreur lors de la suppression du type d'activité:", error);
         alert("Erreur lors de la suppression du type d'activité");
@@ -296,11 +306,7 @@ export default function App() {
   const handleToggleActivityTypeStatus = async (id: number) => {
     try {
       await invoke('toggle_activity_type_status', { id });
-      if (activeTab === 'admin') {
-        await loadAdminReferenceData();
-      } else {
-        await loadFormReferenceData();
-      }
+      await reloadReferenceData();
     } catch (error) {
       console.error("Erreur lors du changement de statut du type d'activité:", error);
     }
@@ -322,11 +328,7 @@ export default function App() {
           color: activityTypeData.color
         });
       }
-      if (activeTab === 'admin') {
-        await loadAdminReferenceData();
-      } else {
-        await loadFormReferenceData();
-      }
+      await reloadReferenceData();
       setShowActivityTypeModal(false);
       setEditingActivityType(null);
     } catch (error) {
@@ -335,11 +337,10 @@ export default function App() {
     }
   };
 
-  const activityTypeCrudHandlers = [handleDeleteActivityType, handleToggleActivityTypeStatus];
-  void activityTypeCrudHandlers;
-
-  const activityTypeNames = activityTypes.map((activityType) => activityType.name);
-  void activityTypeNames;
+  useEffect(() => {
+    void handleDeleteActivityType;
+    void handleToggleActivityTypeStatus;
+  }, []);
 
   // Génération de rapport d'activité
   const generateActivityReport = async () => {
@@ -919,6 +920,10 @@ export default function App() {
               <li>
                 <span>Tags disponibles</span>
                 <span className="analytics-value">{tags.length}</span>
+              </li>
+              <li>
+                <span>Types d'activité configurés</span>
+                <span className="analytics-value">{activityTypes.length}</span>
               </li>
               <li>
                 <span>Tickets Jira chargés</span>
