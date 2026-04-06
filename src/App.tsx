@@ -337,10 +337,8 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    void handleDeleteActivityType;
-    void handleToggleActivityTypeStatus;
-  }, []);
+  void handleDeleteActivityType;
+  void handleToggleActivityTypeStatus;
 
   // Génération de rapport d'activité
   const generateActivityReport = async () => {
