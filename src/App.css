@@ -297,6 +297,28 @@ tr:last-child td {
 .action-buttons {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.inline-delete-confirmation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 107, 107, 0.12);
+  border: 1px solid rgba(238, 90, 82, 0.25);
+}
+
+.inline-delete-confirmation span {
+  color: #1f2933;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dark-theme .inline-delete-confirmation span {
+  color: #ffffff;
 }
 
 .btn-sm {

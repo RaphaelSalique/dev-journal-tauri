@@ -30,6 +30,7 @@ export default function App() {
   const [projects, setProjects] = useState<any[]>([]);
   const [tags, setTags] = useState<any[]>([]);
   const [activityTypes, setActivityTypes] = useState<any[]>([]);
+  const [pendingDeletion, setPendingDeletion] = useState<{ entityType: AdminEntityType; id: number } | null>(null);
   
   const [adminView, setAdminView] = useState<AdminViewState>({
     view: 'list',
@@ -73,6 +74,7 @@ export default function App() {
   };
 
   const openAdminForm = (entityType: AdminEntityType, mode: AdminMode, initialData: any = null) => {
+    setPendingDeletion(null);
     setAdminView({
       view: 'form',
       entityType,
@@ -83,6 +85,7 @@ export default function App() {
   };
 
   const closeAdminForm = (preserveReturnToSection = false) => {
+    setPendingDeletion(null);
     setAdminView((current) => ({
       view: 'list',
       entityType: null,
@@ -249,14 +252,13 @@ export default function App() {
 
   // Gestion des projets
   const handleDeleteProject = async (id: number) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce projet ?')) {
-      try {
-        await invoke('delete_project', { id });
-        await reloadReferenceData();
-      } catch (error) {
-        console.error('Erreur lors de la suppression du projet:', error);
-        alert('Erreur lors de la suppression du projet');
-      }
+    try {
+      await invoke('delete_project', { id });
+      setPendingDeletion(null);
+      await reloadReferenceData();
+    } catch (error) {
+      console.error('Erreur lors de la suppression du projet:', error);
+      alert('Erreur lors de la suppression du projet');
     }
   };
 
@@ -295,14 +297,13 @@ export default function App() {
 
   // Gestion des tags
   const handleDeleteTag = async (id: number) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce tag ?')) {
-      try {
-        await invoke('delete_tag', { id });
-        await reloadReferenceData();
-      } catch (error) {
-        console.error('Erreur lors de la suppression du tag:', error);
-        alert('Erreur lors de la suppression du tag');
-      }
+    try {
+      await invoke('delete_tag', { id });
+      setPendingDeletion(null);
+      await reloadReferenceData();
+    } catch (error) {
+      console.error('Erreur lors de la suppression du tag:', error);
+      alert('Erreur lors de la suppression du tag');
     }
   };
 
@@ -341,15 +342,44 @@ export default function App() {
 
   // Gestion des types d'activité
   const handleDeleteActivityType = async (id: number) => {
-    if (confirm("Êtes-vous sûr de vouloir supprimer ce type d'activité ?")) {
-      try {
-        await invoke('delete_activity_type', { id });
-        await reloadReferenceData();
-      } catch (error) {
-        console.error("Erreur lors de la suppression du type d'activité:", error);
-        alert("Erreur lors de la suppression du type d'activité");
-      }
+    try {
+      await invoke('delete_activity_type', { id });
+      setPendingDeletion(null);
+      await reloadReferenceData();
+    } catch (error) {
+      console.error("Erreur lors de la suppression du type d'activité:", error);
+      alert("Erreur lors de la suppression du type d'activité");
     }
+  };
+
+  const requestDelete = (entityType: AdminEntityType, id: number) => {
+    setPendingDeletion({ entityType, id });
+  };
+
+  const confirmDelete = async (entityType: AdminEntityType, id: number) => {
+    if (entityType === 'project') {
+      await handleDeleteProject(id);
+      return;
+    }
+
+    if (entityType === 'tag') {
+      await handleDeleteTag(id);
+      return;
+    }
+
+    await handleDeleteActivityType(id);
+  };
+
+  const getDeleteConfirmationLabel = (entityType: AdminEntityType) => {
+    if (entityType === 'project') {
+      return 'Confirmer la suppression de ce projet ?';
+    }
+
+    if (entityType === 'tag') {
+      return 'Confirmer la suppression de ce tag ?';
+    }
+
+    return "Confirmer la suppression de ce type d'activité ?";
   };
 
   const handleToggleActivityTypeStatus = async (id: number) => {
@@ -585,6 +615,7 @@ export default function App() {
                   <h3>Projets ({projects.length})</h3>
                   <button
                     className="btn-create"
+                    type="button"
                     onClick={() => openAdminForm('project', 'create')}
                   >
                     Nouveau Projet
@@ -619,23 +650,45 @@ export default function App() {
                           <div className="action-buttons">
                             <button
                               className="btn-sm btn-edit"
+                              type="button"
                               onClick={() => openAdminForm('project', 'edit', project)}
                             >
                               Éditer
                             </button>
                             <button
                               className="btn-sm btn-delete"
-                              onClick={() => handleDeleteProject(project.id)}
+                              type="button"
+                              onClick={() => requestDelete('project', project.id)}
                             >
                               Supprimer
                             </button>
                             <button
                               className="btn-sm"
+                              type="button"
                               onClick={() => handleToggleProjectStatus(project.id)}
                               style={{ background: project.active ? '#ffc107' : '#28a745' }}
                             >
                               {project.active ? 'Désactiver' : 'Activer'}
                             </button>
+                            {pendingDeletion?.entityType === 'project' && pendingDeletion.id === project.id ? (
+                              <div className="inline-delete-confirmation">
+                                <span>{getDeleteConfirmationLabel('project')}</span>
+                                <button
+                                  className="btn-sm btn-delete"
+                                  type="button"
+                                  onClick={() => confirmDelete('project', project.id)}
+                                >
+                                  Confirmer
+                                </button>
+                                <button
+                                  className="btn-sm btn-cancel"
+                                  type="button"
+                                  onClick={() => setPendingDeletion(null)}
+                                >
+                                  Annuler
+                                </button>
+                              </div>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -650,6 +703,7 @@ export default function App() {
                   <button
                     className="btn-create"
                     style={{ background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' }}
+                    type="button"
                     onClick={() => openAdminForm('tag', 'create')}
                   >
                     Nouveau Tag
@@ -684,23 +738,45 @@ export default function App() {
                           <div className="action-buttons">
                             <button
                               className="btn-sm btn-edit"
+                              type="button"
                               onClick={() => openAdminForm('tag', 'edit', tag)}
                             >
                               Éditer
                             </button>
                             <button
                               className="btn-sm btn-delete"
-                              onClick={() => handleDeleteTag(tag.id)}
+                              type="button"
+                              onClick={() => requestDelete('tag', tag.id)}
                             >
                               Supprimer
                             </button>
                             <button
                               className="btn-sm"
+                              type="button"
                               onClick={() => handleToggleTagStatus(tag.id)}
                               style={{ background: tag.active ? '#ffc107' : '#28a745' }}
                             >
                               {tag.active ? 'Désactiver' : 'Activer'}
                             </button>
+                            {pendingDeletion?.entityType === 'tag' && pendingDeletion.id === tag.id ? (
+                              <div className="inline-delete-confirmation">
+                                <span>{getDeleteConfirmationLabel('tag')}</span>
+                                <button
+                                  className="btn-sm btn-delete"
+                                  type="button"
+                                  onClick={() => confirmDelete('tag', tag.id)}
+                                >
+                                  Confirmer
+                                </button>
+                                <button
+                                  className="btn-sm btn-cancel"
+                                  type="button"
+                                  onClick={() => setPendingDeletion(null)}
+                                >
+                                  Annuler
+                                </button>
+                              </div>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -715,6 +791,7 @@ export default function App() {
                   <button
                     className="btn-create"
                     style={{ background: 'linear-gradient(135deg, #fd7e14 0%, #ffc107 100%)' }}
+                    type="button"
                     onClick={() => openAdminForm('activityType', 'create')}
                   >
                     Nouveau Type d'activité
@@ -749,23 +826,45 @@ export default function App() {
                           <div className="action-buttons">
                             <button
                               className="btn-sm btn-edit"
+                              type="button"
                               onClick={() => openAdminForm('activityType', 'edit', activityType)}
                             >
                               Éditer
                             </button>
                             <button
                               className="btn-sm btn-delete"
-                              onClick={() => handleDeleteActivityType(activityType.id)}
+                              type="button"
+                              onClick={() => requestDelete('activityType', activityType.id)}
                             >
                               Supprimer
                             </button>
                             <button
                               className="btn-sm"
+                              type="button"
                               onClick={() => handleToggleActivityTypeStatus(activityType.id)}
                               style={{ background: activityType.active ? '#ffc107' : '#28a745' }}
                             >
                               {activityType.active ? 'Désactiver' : 'Activer'}
                             </button>
+                            {pendingDeletion?.entityType === 'activityType' && pendingDeletion.id === activityType.id ? (
+                              <div className="inline-delete-confirmation">
+                                <span>{getDeleteConfirmationLabel('activityType')}</span>
+                                <button
+                                  className="btn-sm btn-delete"
+                                  type="button"
+                                  onClick={() => confirmDelete('activityType', activityType.id)}
+                                >
+                                  Confirmer
+                                </button>
+                                <button
+                                  className="btn-sm btn-cancel"
+                                  type="button"
+                                  onClick={() => setPendingDeletion(null)}
+                                >
+                                  Annuler
+                                </button>
+                              </div>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
