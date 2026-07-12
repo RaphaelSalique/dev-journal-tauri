@@ -29,13 +29,12 @@ tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.13", features = ["json"] }
 uuid = { version = "1.21", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1.0"
 base64 = "0.22"
-dirs = "5.0"
+dirs = "6.0"
 regex = "1.12"
 dotenv = "0.15"
 docx-rs = "0.4"
-
